@@ -1,34 +1,26 @@
 import { Server } from "socket.io";
 
-import voteSocket from "../sockets/voteSocket.js";
-import notificationSocket from "../sockets/notificationSocket.js";
-import supportSocket from "../sockets/supportSocket.js";
-
 let io;
 
 export const initSocket = (server) => {
- io = new Server(server, {
-  cors: {
-    origin: [
-      "http://localhost:5173",
-      "https://online-voting-system-git-main-manishapaboltas-projects.vercel.app",
-    ],
-    methods: ["GET", "POST"],
-    credentials: true,
-  },
-});
+  io = new Server(server, {
+    cors: {
+      origin: [
+        "http://localhost:5173",
+        "https://online-voting-system-phi-beige.vercel.app",
+      ],
+      methods: ["GET", "POST"],
+      credentials: true,
+    },
+  });
 
-  voteSocket();
-  notificationSocket();
-  supportSocket();
+  io.on("connection", (socket) => {
+    console.log("User Connected:", socket.id);
 
-  return io;
+    socket.on("disconnect", () => {
+      console.log("User Disconnected");
+    });
+  });
 };
 
-export const getIO = () => {
-  if (!io) {
-    throw new Error("Socket.io not initialized");
-  }
-
-  return io;
-};
+export const getIO = () => io;
