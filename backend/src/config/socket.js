@@ -7,16 +7,16 @@ import supportSocket from "../sockets/supportSocket.js";
 let io;
 
 export const initSocket = (server) => {
-  io = new Server(server, {
-    cors: {
-      origin: [
-        "http://localhost:5173",
-        "https://online-voting-system-git-main-manishapaboltas-projects.vercel.app",
-      ],
-      methods: ["GET", "POST"],
-      credentials: true,
-    },
-  });
+ io = new Server(server, {
+  cors: {
+    origin: [
+      "http://localhost:5173",
+      "https://online-voting-system-phi-beige.vercel.app",
+    ],
+    methods: ["GET", "POST"],
+    credentials: true,
+  },
+});
 
   voteSocket();
   notificationSocket();
