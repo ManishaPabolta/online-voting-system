@@ -2,26 +2,13 @@ import mongoose from "mongoose";
 
 const connectDB = async () => {
   try {
+    console.log("Mongo URI:", process.env.MONGO_URI);
 
-    const conn = await mongoose.connect(
-      process.env.MONGO_URI,
-      {
-        serverSelectionTimeoutMS: 30000,
-        socketTimeoutMS: 45000,
-      }
-    );
+    await mongoose.connect(process.env.MONGO_URI);
 
-    console.log(
-      `MongoDB Connected: ${conn.connection.host}`
-    );
-
+    console.log("MongoDB Connected");
   } catch (error) {
-
-    console.log(
-      "Database Connection Error:",
-      error.message
-    );
-
+    console.log("DB ERROR FULL:", error);
     process.exit(1);
   }
 };
