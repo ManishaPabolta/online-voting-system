@@ -11,8 +11,10 @@ import {
 } from "react-router-dom";
 
 const Navbar = () => {
-  const navigate =
-    useNavigate();
+  const navigate = useNavigate();
+
+  const token =
+    localStorage.getItem("token");
 
   const logoutHandler = () => {
     localStorage.removeItem(
@@ -57,40 +59,60 @@ const Navbar = () => {
             Elections
           </Link>
 
-          <Link
-            to="/dashboard"
-            className="hover:text-blue-400 transition"
-          >
-            Dashboard
-          </Link>
+          {!token ? (
+            <>
+              <Link
+                to="/login"
+                className="hover:text-blue-400 transition"
+              >
+                Login
+              </Link>
 
-          <Link
-            to="/notifications"
-            className="relative"
-          >
+              <Link
+                to="/register"
+                className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-xl transition"
+              >
+                Register
+              </Link>
+            </>
+          ) : (
+            <>
+              <Link
+                to="/dashboard"
+                className="hover:text-blue-400 transition"
+              >
+                Dashboard
+              </Link>
 
-            <Bell size={22} />
+              <Link
+                to="/notifications"
+                className="relative"
+              >
 
-            <span className="absolute -top-2 -right-2 bg-red-500 text-xs h-5 w-5 flex items-center justify-center rounded-full">
-              3
-            </span>
+                <Bell size={22} />
 
-          </Link>
+                <span className="absolute -top-2 -right-2 bg-red-500 text-xs h-5 w-5 flex items-center justify-center rounded-full">
+                  3
+                </span>
 
-          <Link
-            to="/profile"
-            className="bg-white/10 p-2 rounded-full"
-          >
-            <User size={20} />
-          </Link>
+              </Link>
 
-          <button
-            onClick={logoutHandler}
-            className="bg-red-600 hover:bg-red-700 px-4 py-2 rounded-xl flex items-center gap-2 transition"
-          >
-            <LogOut size={18} />
-            Logout
-          </button>
+              <Link
+                to="/profile"
+                className="bg-white/10 p-2 rounded-full"
+              >
+                <User size={20} />
+              </Link>
+
+              <button
+                onClick={logoutHandler}
+                className="bg-red-600 hover:bg-red-700 px-4 py-2 rounded-xl flex items-center gap-2 transition"
+              >
+                <LogOut size={18} />
+                Logout
+              </button>
+            </>
+          )}
 
         </div>
 
