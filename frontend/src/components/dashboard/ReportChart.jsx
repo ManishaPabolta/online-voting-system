@@ -8,14 +8,7 @@ import {
   CartesianGrid,
 } from "recharts";
 
-const data = [
-  { name: "Election 1", votes: 400 },
-  { name: "Election 2", votes: 650 },
-  { name: "Election 3", votes: 900 },
-  { name: "Election 4", votes: 500 },
-];
-
-const ReportChart = () => {
+const ReportChart = ({ data = [] }) => {
   return (
     <div className="bg-white/10 backdrop-blur-xl border border-white/10 rounded-3xl p-6 shadow-2xl w-full">
 
@@ -23,12 +16,11 @@ const ReportChart = () => {
         Voting Reports
       </h2>
 
-      {/* IMPORTANT FIX */}
       <div className="w-full h-[350px] min-h-[300px]">
 
         <ResponsiveContainer width="100%" height="100%">
 
-          <BarChart data={data}>
+          <BarChart data={data || []}>
 
             <CartesianGrid strokeDasharray="3 3" />
 
@@ -36,7 +28,7 @@ const ReportChart = () => {
             <YAxis />
             <Tooltip />
 
-            <Bar dataKey="votes" fill="#6366f1" />
+            <Bar dataKey="votes" />
 
           </BarChart>
 
