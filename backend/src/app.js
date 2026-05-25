@@ -28,7 +28,7 @@ app.use(
   cors({
     origin: [
       "http://localhost:5173",
-      "https://online-voting-system-phi-beige.vercel.app",
+      "https://online-voting-system-git-main-manishapaboltas-projects.vercel.app",
     ],
     credentials: true,
   })
