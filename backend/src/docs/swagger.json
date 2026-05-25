@@ -1,0 +1,91 @@
+{
+  "openapi": "3.0.0",
+
+  "info": {
+    "title": "Online Voting System API",
+    "version": "1.0.0",
+    "description": "Secure Online Voting Backend APIs"
+  },
+
+  "servers": [
+    {
+      "url": "http://localhost:5000"
+    }
+  ],
+
+  "paths": {
+    "/api/auth/register": {
+      "post": {
+        "summary": "Register User",
+
+        "requestBody": {
+          "required": true,
+
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+
+                  "email": {
+                    "type": "string"
+                  },
+
+                  "password": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+
+        "responses": {
+          "201": {
+            "description": "User Registered Successfully"
+          }
+        }
+      }
+    },
+
+    "/api/auth/login": {
+      "post": {
+        "summary": "Login User",
+
+        "responses": {
+          "200": {
+            "description": "Login Successful"
+          }
+        }
+      }
+    },
+
+    "/api/vote/cast": {
+      "post": {
+        "summary": "Cast Vote",
+
+        "responses": {
+          "201": {
+            "description": "Vote Cast Successfully"
+          }
+        }
+      }
+    },
+
+    "/api/elections": {
+      "get": {
+        "summary": "Get All Elections",
+
+        "responses": {
+          "200": {
+            "description": "Election List"
+          }
+        }
+      }
+    }
+  }
+}
