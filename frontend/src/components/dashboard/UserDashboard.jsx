@@ -39,7 +39,15 @@ const UserDashboard = () => {
 
       try {
 
-        setLoading(true);
+        /**
+         * LOADING ONLY FIRST TIME
+         */
+        if (
+          dashboardData.chartData
+            .length === 0
+        ) {
+          setLoading(true);
+        }
 
         /**
          * API CALLS
@@ -61,11 +69,15 @@ const UserDashboard = () => {
         ]);
 
         /**
-         * ACTIVE ELECTIONS
+         * ELECTIONS
          */
         const elections =
-          electionRes.data?.elections || [];
+          electionRes.data
+            ?.elections || [];
 
+        /**
+         * ACTIVE ELECTIONS
+         */
         const activeElections =
           elections.filter(
             (election) =>
@@ -110,7 +122,7 @@ const UserDashboard = () => {
           );
 
         /**
-         * SET STATE
+         * UPDATE STATE
          */
         setDashboardData({
           activeElections,
@@ -124,11 +136,19 @@ const UserDashboard = () => {
 
         console.log(error);
 
-        toast.error(
-          error.response?.data
-            ?.message ||
-            "Dashboard Load Failed"
-        );
+        /**
+         * DON'T SPAM TOAST
+         */
+        if (
+          error.response?.status !==
+          429
+        ) {
+          toast.error(
+            error.response?.data
+              ?.message ||
+              "Dashboard Load Failed"
+          );
+        }
 
       } finally {
 
@@ -137,22 +157,11 @@ const UserDashboard = () => {
     };
 
   /**
-   * ================= AUTO REFRESH =================
+   * ================= FETCH ONCE =================
    */
   useEffect(() => {
 
     fetchDashboard();
-
-    /**
-     * AUTO UPDATE EVERY 5 SEC
-     */
-    const interval =
-      setInterval(() => {
-        fetchDashboard();
-      }, 5000);
-
-    return () =>
-      clearInterval(interval);
 
   }, []);
 
