@@ -3,6 +3,7 @@ dotenv.config();
 
 import http from "http";
 import app from "./app.js";
+import connectDB from "./config/db.js";
 import { Server } from "socket.io";
 
 /* =========================================================
@@ -12,13 +13,7 @@ import { Server } from "socket.io";
 const PORT = Number(process.env.PORT) || 5000;
 
 /* =========================================================
-   HTTP SERVER
-========================================================= */
-
-const server = http.createServer(app);
-
-/* =========================================================
-   SOCKET.IO
+   SOCKET.IO ALLOWED ORIGINS
 ========================================================= */
 
 const allowedOrigins = [
@@ -28,141 +23,173 @@ const allowedOrigins = [
   process.env.FRONTEND_URL,
 ].filter(Boolean);
 
-const io = new Server(server, {
-  cors: {
-    origin: allowedOrigins,
-    methods: ["GET", "POST"],
-    credentials: true,
-  },
-
-  transports: ["websocket", "polling"],
-});
-
-/* =========================================================
-   SOCKET EVENTS
-========================================================= */
-
-io.on("connection", (socket) => {
-  console.log(`Socket connected: ${socket.id}`);
-
-  /* -------------------------------------------------------
-     USER ROOM
-  ------------------------------------------------------- */
-
-  socket.on("join-user-room", (userId) => {
-    if (!userId) return;
-
-    const room = `user:${userId}`;
-
-    socket.join(room);
-
-    console.log(
-      `User ${userId} joined room ${room}`
-    );
-  });
-
-  /* -------------------------------------------------------
-     SUPPORT ROOM
-  ------------------------------------------------------- */
-
-  socket.on("join-support-room", (roomId) => {
-    if (!roomId) return;
-
-    const room = `support:${roomId}`;
-
-    socket.join(room);
-
-    console.log(
-      `Socket ${socket.id} joined support room ${room}`
-    );
-  });
-
-  /* -------------------------------------------------------
-     ELECTION ROOM
-  ------------------------------------------------------- */
-
-  socket.on("join-election", (electionId) => {
-    if (!electionId) return;
-
-    const room = `election:${electionId}`;
-
-    socket.join(room);
-
-    console.log(
-      `Socket ${socket.id} joined election room ${room}`
-    );
-  });
-
-  /* -------------------------------------------------------
-     DISCONNECT
-  ------------------------------------------------------- */
-
-  socket.on("disconnect", (reason) => {
-    console.log(
-      `Socket disconnected: ${socket.id} | ${reason}`
-    );
-  });
-});
-
 /* =========================================================
    START SERVER
 ========================================================= */
 
-server.listen(PORT, () => {
-  console.log("====================================");
-  console.log("ONLINE VOTING SYSTEM BACKEND");
-  console.log("====================================");
-  console.log(
-    `Environment : ${process.env.NODE_ENV || "development"}`
-  );
-  console.log(`Server Port : ${PORT}`);
-  console.log(
-    `API URL     : http://localhost:${PORT}`
-  );
-  console.log(
-    `Uploads     : http://localhost:${PORT}/uploads`
-  );
-  console.log(
-    `Swagger     : http://localhost:${PORT}/api-docs`
-  );
-  console.log(
-    `Socket.IO   : http://localhost:${PORT}`
-  );
-  console.log("====================================");
-});
+const startServer = async () => {
+  try {
+    /* -----------------------------------------------------
+       CONNECT MONGODB FIRST
+    ----------------------------------------------------- */
 
-/* =========================================================
-   GRACEFUL SHUTDOWN
-========================================================= */
+    await connectDB();
 
-const shutdown = (signal) => {
-  console.log(
-    `\n${signal} received. Shutting down server...`
-  );
+    console.log("MongoDB connection successful.");
 
-  server.close(() => {
-    console.log("Server closed successfully.");
-    process.exit(0);
-  });
+    /* -----------------------------------------------------
+       HTTP SERVER
+    ----------------------------------------------------- */
+
+    const server = http.createServer(app);
+
+    /* -----------------------------------------------------
+       SOCKET.IO
+    ----------------------------------------------------- */
+
+    const io = new Server(server, {
+      cors: {
+        origin: allowedOrigins,
+        methods: ["GET", "POST"],
+        credentials: true,
+      },
+
+      transports: ["websocket", "polling"],
+    });
+
+    /* -----------------------------------------------------
+       SOCKET EVENTS
+    ----------------------------------------------------- */
+
+    io.on("connection", (socket) => {
+      console.log(`Socket connected: ${socket.id}`);
+
+      /* USER ROOM */
+
+      socket.on("join-user-room", (userId) => {
+        if (!userId) return;
+
+        const room = `user:${userId}`;
+
+        socket.join(room);
+
+        console.log(
+          `User ${userId} joined room ${room}`
+        );
+      });
+
+      /* SUPPORT ROOM */
+
+      socket.on("join-support-room", (roomId) => {
+        if (!roomId) return;
+
+        const room = `support:${roomId}`;
+
+        socket.join(room);
+
+        console.log(
+          `Socket ${socket.id} joined support room ${room}`
+        );
+      });
+
+      /* ELECTION ROOM */
+
+      socket.on("join-election", (electionId) => {
+        if (!electionId) return;
+
+        const room = `election:${electionId}`;
+
+        socket.join(room);
+
+        console.log(
+          `Socket ${socket.id} joined election room ${room}`
+        );
+      });
+
+      /* DISCONNECT */
+
+      socket.on("disconnect", (reason) => {
+        console.log(
+          `Socket disconnected: ${socket.id} | ${reason}`
+        );
+      });
+    });
+
+    /* -----------------------------------------------------
+       START HTTP SERVER
+    ----------------------------------------------------- */
+
+    server.listen(PORT, () => {
+      console.log("====================================");
+      console.log("ONLINE VOTING SYSTEM BACKEND");
+      console.log("====================================");
+      console.log(
+        `Environment : ${process.env.NODE_ENV || "development"}`
+      );
+      console.log(`Server Port : ${PORT}`);
+      console.log(
+        `API URL     : http://localhost:${PORT}`
+      );
+      console.log(
+        `Uploads     : http://localhost:${PORT}/uploads`
+      );
+      console.log(
+        `Swagger     : http://localhost:${PORT}/api-docs`
+      );
+      console.log(
+        `Socket.IO   : http://localhost:${PORT}`
+      );
+      console.log("====================================");
+    });
+
+    /* -----------------------------------------------------
+       GRACEFUL SHUTDOWN
+    ----------------------------------------------------- */
+
+    const shutdown = (signal) => {
+      console.log(
+        `\n${signal} received. Shutting down server...`
+      );
+
+      server.close(() => {
+        console.log("Server closed successfully.");
+        process.exit(0);
+      });
+    };
+
+    process.on("SIGTERM", () => shutdown("SIGTERM"));
+    process.on("SIGINT", () => shutdown("SIGINT"));
+
+    /* -----------------------------------------------------
+       UNHANDLED ERRORS
+    ----------------------------------------------------- */
+
+    process.on("unhandledRejection", (error) => {
+      console.error(
+        "UNHANDLED REJECTION:",
+        error
+      );
+    });
+
+    process.on("uncaughtException", (error) => {
+      console.error(
+        "UNCAUGHT EXCEPTION:",
+        error
+      );
+    });
+
+  } catch (error) {
+    console.error("====================================");
+    console.error("SERVER STARTUP FAILED");
+    console.error("====================================");
+    console.error(error.message);
+
+    process.exit(1);
+  }
 };
 
-process.on("SIGTERM", () => shutdown("SIGTERM"));
-process.on("SIGINT", () => shutdown("SIGINT"));
-
 /* =========================================================
-   UNHANDLED ERRORS
+   START APPLICATION
 ========================================================= */
 
-process.on("unhandledRejection", (error) => {
-  console.error(
-    "UNHANDLED REJECTION:",
-    error
-  );
-});
-
-process.on("uncaughtException", (error) => {
-  console.error(
-    "UNCAUGHT EXCEPTION:",
-    error
-  );
-});
+startServer();
