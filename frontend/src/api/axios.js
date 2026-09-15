@@ -2,7 +2,7 @@ import axios from "axios";
 
 const API_BASE_URL =
   import.meta.env.VITE_API_URL ||
-  "https://learning-rbko.onrender.com/api";
+  "https://online-voting-system-6i81.onrender.com/api";
 
 const API = axios.create({
   baseURL: API_BASE_URL,
@@ -46,7 +46,10 @@ API.interceptors.response.use(
 
     const status = error.response.status;
 
-    // Token invalid/expired
+    // ==========================================
+    // TOKEN INVALID / EXPIRED
+    // ==========================================
+
     if (status === 401) {
       const currentPath = window.location.pathname;
 
