@@ -1,8 +1,12 @@
 // ======================================================
-// RESEND MAIL CONFIGURATION
+// RESEND MAIL SERVICE
 // ======================================================
 
 const RESEND_API_URL = "https://api.resend.com/emails";
+
+// ======================================================
+// GET RESEND API KEY
+// ======================================================
 
 const getApiKey = () => {
   const apiKey = process.env.RESEND_API_KEY;
@@ -15,6 +19,10 @@ const getApiKey = () => {
 
   return apiKey;
 };
+
+// ======================================================
+// GET SENDER EMAIL
+// ======================================================
 
 const getFromEmail = () => {
   const from = process.env.EMAIL_FROM;
@@ -29,16 +37,20 @@ const getFromEmail = () => {
 };
 
 // ======================================================
-// SEND EMAIL USING RESEND API
+// SEND EMAIL
 // ======================================================
 
-const sendMail = async ({
+export const sendEmail = async ({
   from,
   to,
   subject,
   html,
   text,
 }) => {
+  // -----------------------------------------------
+  // VALIDATION
+  // -----------------------------------------------
+
   if (!to) {
     throw new Error("Recipient email is required.");
   }
@@ -53,6 +65,10 @@ const sendMail = async ({
     );
   }
 
+  // -----------------------------------------------
+  // RESEND CONFIGURATION
+  // -----------------------------------------------
+
   const apiKey = getApiKey();
 
   const sender = from || getFromEmail();
@@ -60,6 +76,10 @@ const sendMail = async ({
   const recipients = Array.isArray(to)
     ? to
     : [String(to).trim()];
+
+  // -----------------------------------------------
+  // REQUEST PAYLOAD
+  // -----------------------------------------------
 
   const payload = {
     from: sender,
@@ -75,6 +95,10 @@ const sendMail = async ({
     payload.text = text;
   }
 
+  // -----------------------------------------------
+  // SEND THROUGH RESEND
+  // -----------------------------------------------
+
   const response = await fetch(
     RESEND_API_URL,
     {
@@ -89,6 +113,10 @@ const sendMail = async ({
     }
   );
 
+  // -----------------------------------------------
+  // READ RESPONSE
+  // -----------------------------------------------
+
   let data = {};
 
   try {
@@ -96,6 +124,10 @@ const sendMail = async ({
   } catch {
     data = {};
   }
+
+  // -----------------------------------------------
+  // HANDLE RESEND ERROR
+  // -----------------------------------------------
 
   if (!response.ok) {
     const errorMessage =
@@ -105,6 +137,14 @@ const sendMail = async ({
 
     throw new Error(errorMessage);
   }
+
+  // -----------------------------------------------
+  // SUCCESS
+  // -----------------------------------------------
+
+  console.log(
+    `Email sent successfully to ${recipients.join(", ")}`
+  );
 
   return {
     messageId: data?.id || null,
@@ -121,7 +161,9 @@ export const verifyMailTransporter = async () => {
     getApiKey();
     getFromEmail();
 
-    console.log("Resend mail configuration is ready.");
+    console.log(
+      "Resend mail configuration is ready."
+    );
 
     return true;
   } catch (error) {
@@ -139,7 +181,7 @@ export const verifyMailTransporter = async () => {
 // ======================================================
 
 const transporter = {
-  sendMail,
+  sendEmail,
 };
 
 export default transporter;
