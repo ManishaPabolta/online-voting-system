@@ -6,7 +6,7 @@ import User from "../models/User.js";
 import generateOTP from "../utils/generateOTP.js";
 import {
   sendEmail,
-} from "../utils/mailService.js";
+} from "../services/mailService.js";
 
 // ======================================================
 // CONSTANTS
