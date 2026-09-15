@@ -4,7 +4,9 @@ import crypto from "crypto";
 
 import User from "../models/User.js";
 import generateOTP from "../utils/generateOTP.js";
-import transporter from "../config/mail.js";
+import {
+  sendEmail,
+} from "../utils/mailService.js";
 
 // ======================================================
 // CONSTANTS
@@ -94,7 +96,6 @@ const generateAccessToken = (user) => {
     }
   );
 };
-
 // ======================================================
 // SEND REGISTRATION EMAIL
 // ======================================================
@@ -106,21 +107,37 @@ const sendRegistrationEmail = async ({
   voterId,
   votingPassword,
 }) => {
-  if (!transporter) {
-    throw new Error(
-      "Email transporter is not configured."
-    );
-  }
-
-  await transporter.sendMail({
-    from:
-      process.env.EMAIL_FROM ||
-      process.env.EMAIL_USER,
-
+  await sendEmail({
     to: email,
 
     subject:
       "Online Voting System - Account Verification & Voting Credentials",
+
+    text: `
+Hello ${name},
+
+Your Online Voting System account has been created successfully.
+
+EMAIL VERIFICATION OTP:
+${otp}
+
+This OTP expires in ${OTP_EXPIRY_MINUTES} minutes.
+
+YOUR VOTER ID:
+${voterId}
+
+YOUR VOTING PASSWORD:
+${votingPassword}
+
+This voting password is separate from your normal login password.
+
+You will need your voting password before casting your vote.
+
+SECURITY NOTICE:
+Never share your OTP or voting password with another person.
+
+Online Voting System
+`.trim(),
 
     html: `
       <!DOCTYPE html>
@@ -415,7 +432,6 @@ const sendRegistrationEmail = async ({
     `,
   });
 };
-
 // ======================================================
 // REGISTER USER
 // ======================================================

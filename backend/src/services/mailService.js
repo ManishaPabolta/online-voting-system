@@ -11,11 +11,15 @@ export const sendEmail = async ({
   text = "",
 }) => {
   if (!to) {
-    throw new Error("Recipient email is required.");
+    throw new Error(
+      "Recipient email is required."
+    );
   }
 
   if (!subject) {
-    throw new Error("Email subject is required.");
+    throw new Error(
+      "Email subject is required."
+    );
   }
 
   if (!html && !text) {
@@ -25,9 +29,7 @@ export const sendEmail = async ({
   }
 
   const info = await transporter.sendMail({
-    from:
-      process.env.EMAIL_FROM ||
-      process.env.EMAIL_USER,
+    from: process.env.EMAIL_FROM,
 
     to: String(to).trim(),
 
@@ -51,58 +53,180 @@ export const sendOTPEmail = async ({
   otp,
 }) => {
   if (!otp) {
-    throw new Error("OTP is required.");
+    throw new Error(
+      "OTP is required."
+    );
   }
 
   return sendEmail({
     to,
-    subject: "Online Voting System - Verification OTP",
 
-    text: `Hello ${name}, your verification OTP is ${otp}. This OTP will expire soon.`,
+    subject:
+      "Online Voting System - Verification OTP",
+
+    text: `
+Hello ${name},
+
+Your verification OTP is ${otp}.
+
+This OTP will expire soon.
+
+Please do not share this OTP with anyone.
+
+Online Voting System
+`.trim(),
 
     html: `
-      <div
+      <!DOCTYPE html>
+
+      <html>
+
+      <head>
+        <meta charset="UTF-8" />
+
+        <meta
+          name="viewport"
+          content="width=device-width, initial-scale=1.0"
+        />
+
+        <title>
+          Account Verification
+        </title>
+      </head>
+
+      <body
         style="
-          max-width:600px;
-          margin:30px auto;
-          padding:30px;
-          font-family:Arial,sans-serif;
-          background:#ffffff;
-          border-radius:12px;
+          margin:0;
+          padding:0;
+          background:#f3f7f5;
+          font-family:Arial,Helvetica,sans-serif;
+          color:#1f2937;
         "
       >
-        <h2>Account Verification</h2>
-
-        <p>Hello ${name},</p>
-
-        <p>
-          Your verification OTP is:
-        </p>
 
         <div
           style="
-            margin:20px 0;
-            padding:15px;
-            text-align:center;
-            font-size:30px;
-            font-weight:bold;
-            letter-spacing:8px;
-            background:#f3f4f6;
-            border-radius:8px;
+            max-width:600px;
+            margin:30px auto;
+            padding:20px;
           "
         >
-          ${otp}
+
+          <div
+            style="
+              background:#ffffff;
+              border-radius:16px;
+              padding:30px;
+              box-shadow:0 8px 30px rgba(0,0,0,0.08);
+            "
+          >
+
+            <div
+              style="
+                text-align:center;
+                margin-bottom:25px;
+              "
+            >
+
+              <h1
+                style="
+                  margin:0;
+                  color:#166534;
+                  font-size:26px;
+                "
+              >
+                Online Voting System
+              </h1>
+
+              <p
+                style="
+                  color:#6b7280;
+                  margin-top:8px;
+                "
+              >
+                Secure Digital Voting Platform
+              </p>
+
+            </div>
+
+            <h2>
+              Account Verification
+            </h2>
+
+            <p
+              style="
+                color:#4b5563;
+                line-height:1.6;
+              "
+            >
+              Hello ${name},
+            </p>
+
+            <p
+              style="
+                color:#4b5563;
+                line-height:1.6;
+              "
+            >
+              Your verification OTP is:
+            </p>
+
+            <div
+              style="
+                margin:25px 0;
+                padding:20px;
+                text-align:center;
+                background:#f0fdf4;
+                border:1px solid #bbf7d0;
+                border-radius:12px;
+              "
+            >
+
+              <div
+                style="
+                  font-size:34px;
+                  font-weight:bold;
+                  letter-spacing:8px;
+                  color:#14532d;
+                "
+              >
+                ${otp}
+              </div>
+
+            </div>
+
+            <p
+              style="
+                color:#4b5563;
+                line-height:1.6;
+              "
+            >
+              Please do not share this OTP with anyone.
+            </p>
+
+            <div
+              style="
+                margin-top:25px;
+                padding-top:20px;
+                border-top:1px solid #e5e7eb;
+                text-align:center;
+                color:#9ca3af;
+                font-size:12px;
+              "
+            >
+
+              This is an automated message from the
+              Online Voting System.
+
+            </div>
+
+          </div>
+
         </div>
 
-        <p>
-          Please do not share this OTP with anyone.
-        </p>
+      </body>
 
-        <p style="color:#777;font-size:13px;">
-          This is an automated message from the
-          Online Voting System.
-        </p>
-      </div>
+      </html>
     `,
   });
 };
@@ -117,36 +241,110 @@ export const sendSecurityEmail = async ({
   subject,
   message,
 }) => {
+  if (!subject) {
+    throw new Error(
+      "Email subject is required."
+    );
+  }
+
+  if (!message) {
+    throw new Error(
+      "Email message is required."
+    );
+  }
+
   return sendEmail({
     to,
+
     subject,
 
-    text: `Hello ${name},\n\n${message}`,
+    text: `
+Hello ${name},
+
+${message}
+
+This is an automated security message from the Online Voting System.
+`.trim(),
 
     html: `
-      <div
+      <!DOCTYPE html>
+
+      <html>
+
+      <head>
+        <meta charset="UTF-8" />
+
+        <meta
+          name="viewport"
+          content="width=device-width, initial-scale=1.0"
+        />
+
+        <title>
+          ${subject}
+        </title>
+      </head>
+
+      <body
         style="
-          max-width:600px;
-          margin:30px auto;
-          padding:30px;
-          font-family:Arial,sans-serif;
+          margin:0;
+          padding:0;
+          background:#f3f7f5;
+          font-family:Arial,Helvetica,sans-serif;
         "
       >
-        <h2>${subject}</h2>
 
-        <p>Hello ${name},</p>
-
-        <p>${message}</p>
-
-        <p
+        <div
           style="
-            color:#777;
-            font-size:13px;
+            max-width:600px;
+            margin:30px auto;
+            padding:20px;
           "
         >
-          This is an automated security message.
-        </p>
-      </div>
+
+          <div
+            style="
+              background:#ffffff;
+              border-radius:16px;
+              padding:30px;
+              box-shadow:0 8px 30px rgba(0,0,0,0.08);
+            "
+          >
+
+            <h2>
+              ${subject}
+            </h2>
+
+            <p>
+              Hello ${name},
+            </p>
+
+            <p
+              style="
+                line-height:1.6;
+                color:#4b5563;
+              "
+            >
+              ${message}
+            </p>
+
+            <p
+              style="
+                margin-top:30px;
+                color:#777;
+                font-size:13px;
+              "
+            >
+              This is an automated security message
+              from the Online Voting System.
+            </p>
+
+          </div>
+
+        </div>
+
+      </body>
+
+      </html>
     `,
   });
 };
