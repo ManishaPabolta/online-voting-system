@@ -29,7 +29,7 @@ export const sendEmail = async ({
   }
 
   const info = await transporter.sendMail({
-    from: process.env.EMAIL_FROM,
+    from: process.env.EMAIL_USER,
 
     to: String(to).trim(),
 
