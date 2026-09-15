@@ -3,13 +3,12 @@ import {
   useLocation,
 } from "react-router-dom";
 
-import useAuth from "../../hooks/useAuth";
+import { useAuth } from "../../context/AuthContext";
 import Loader from "./Loader";
 
-const ProtectedRoute = ({
-  children,
-}) => {
+const ProtectedRoute = ({ children }) => {
   const {
+    user,
     loading,
     isAuthenticated,
   } = useAuth();
@@ -17,7 +16,7 @@ const ProtectedRoute = ({
   const location = useLocation();
 
   // ==========================================
-  // AUTH CHECK LOADING
+  // AUTHENTICATION INITIALIZATION
   // ==========================================
 
   if (loading) {
@@ -25,10 +24,17 @@ const ProtectedRoute = ({
   }
 
   // ==========================================
-  // NOT AUTHENTICATED
+  // TOKEN EXISTS BUT USER IS NOT AVAILABLE
   // ==========================================
 
-  if (!isAuthenticated) {
+  const token = localStorage.getItem("token");
+
+  /*
+    If there is no token and no authenticated user,
+    the user is definitely not logged in.
+  */
+
+  if (!token && !isAuthenticated) {
     return (
       <Navigate
         to="/login"
@@ -39,6 +45,26 @@ const ProtectedRoute = ({
       />
     );
   }
+
+  // ==========================================
+  // USER NOT AUTHENTICATED
+  // ==========================================
+
+  if (!isAuthenticated || !user) {
+    return (
+      <Navigate
+        to="/login"
+        replace
+        state={{
+          from: location.pathname,
+        }}
+      />
+    );
+  }
+
+  // ==========================================
+  // AUTHENTICATED USER
+  // ==========================================
 
   return children;
 };

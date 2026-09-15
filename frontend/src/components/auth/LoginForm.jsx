@@ -16,12 +16,24 @@ import {
 } from "lucide-react";
 
 import { loginUser } from "../../api/authApi";
+import { useAuth } from "../../context/AuthContext";
 
 const LoginForm = () => {
   const navigate = useNavigate();
 
+  // ==========================================
+  // AUTH CONTEXT
+  // ==========================================
+
+  const { handleLogin } = useAuth();
+
+  // ==========================================
+  // STATE
+  // ==========================================
+
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+
   const [showVerifyBox, setShowVerifyBox] = useState(false);
   const [verifyEmail, setVerifyEmail] = useState("");
 
@@ -29,6 +41,10 @@ const LoginForm = () => {
     email: "",
     password: "",
   });
+
+  // ==========================================
+  // HANDLE INPUT CHANGE
+  // ==========================================
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -39,10 +55,25 @@ const LoginForm = () => {
     }));
   };
 
+  // ==========================================
+  // HANDLE LOGIN
+  // ==========================================
+
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (!formData.email.trim() || !formData.password.trim()) {
+    if (loading) {
+      return;
+    }
+
+    const email = formData.email.trim();
+    const password = formData.password;
+
+    // ------------------------------------------
+    // VALIDATION
+    // ------------------------------------------
+
+    if (!email || !password.trim()) {
       toast.error("Please fill in all fields.");
       return;
     }
@@ -51,40 +82,94 @@ const LoginForm = () => {
       setLoading(true);
       setShowVerifyBox(false);
 
+      // ----------------------------------------
+      // LOGIN API
+      // ----------------------------------------
+
       const response = await loginUser({
-        email: formData.email.trim(),
-        password: formData.password,
+        email,
+        password,
       });
 
-      const token = response?.token;
-      const user = response?.user;
+      console.log("LOGIN RESPONSE:", response);
+
+      // ----------------------------------------
+      // HANDLE AUTHENTICATION
+      // ----------------------------------------
+      //
+      // AuthContext handles:
+      // - token
+      // - user
+      // - React auth state
+      // - /me fallback if required
+      //
+      // ----------------------------------------
+
+      const loggedInUser = await handleLogin(response);
+
+      // ----------------------------------------
+      // VERIFY TOKEN
+      // ----------------------------------------
+
+      const token =
+        response?.token ||
+        response?.data?.token ||
+        null;
 
       if (!token) {
-        throw new Error("Authentication token was not received.");
+        throw new Error(
+          "Authentication token was not received from the server."
+        );
       }
 
-      localStorage.setItem("token", token);
+      // ----------------------------------------
+      // LOGIN SUCCESS
+      // ----------------------------------------
 
-      if (user) {
-        localStorage.setItem("user", JSON.stringify(user));
-      }
+      console.log(
+        "LOGIN SUCCESS:",
+        loggedInUser
+      );
 
-      toast.success("Welcome back! Login successful.");
+      toast.success(
+        "Welcome back! Login successful."
+      );
 
-      navigate("/dashboard", { replace: true });
+      // ----------------------------------------
+      // GO TO DASHBOARD
+      // ----------------------------------------
+
+      navigate("/dashboard", {
+        replace: true,
+      });
     } catch (error) {
-      console.error("LOGIN ERROR:", error);
+      console.error(
+        "LOGIN ERROR:",
+        error
+      );
+
+      // ----------------------------------------
+      // BACKEND ERROR MESSAGE
+      // ----------------------------------------
 
       const message =
         error?.response?.data?.message ||
+        error?.response?.data?.error ||
         error?.message ||
         "Unable to login. Please try again.";
 
+      // ----------------------------------------
+      // EMAIL VERIFICATION CHECK
+      // ----------------------------------------
+
+      const lowerMessage =
+        String(message).toLowerCase();
+
       if (
-        message.toLowerCase().includes("verify") &&
-        message.toLowerCase().includes("email")
+        lowerMessage.includes("verify") &&
+        lowerMessage.includes("email")
       ) {
-        setVerifyEmail(formData.email);
+        setVerifyEmail(email);
         setShowVerifyBox(true);
       }
 
@@ -94,29 +179,63 @@ const LoginForm = () => {
     }
   };
 
+  // ==========================================
+  // UI
+  // ==========================================
+
   return (
     <motion.div
-      initial={{ opacity: 0, y: 30, scale: 0.97 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
+      initial={{
+        opacity: 0,
+        y: 30,
+        scale: 0.97,
+      }}
+      animate={{
+        opacity: 1,
+        y: 0,
+        scale: 1,
+      }}
       transition={{
         duration: 0.55,
         ease: "easeOut",
       }}
       className="relative w-full max-w-md"
     >
-      {/* Decorative Glow */}
+      {/* ======================================
+          DECORATIVE GLOW
+      ======================================= */}
+
       <div className="absolute -inset-1 rounded-[2rem] bg-gradient-to-r from-emerald-500/20 via-teal-400/10 to-emerald-500/20 blur-xl" />
 
+      {/* ======================================
+          MAIN CARD
+      ======================================= */}
+
       <div className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-slate-900/80 p-6 shadow-2xl backdrop-blur-2xl sm:p-8">
-        {/* Top Glow */}
+
+        {/* Background Glow */}
+
         <div className="pointer-events-none absolute -right-20 -top-20 h-40 w-40 rounded-full bg-emerald-500/10 blur-3xl" />
+
         <div className="pointer-events-none absolute -bottom-20 -left-20 h-40 w-40 rounded-full bg-teal-500/10 blur-3xl" />
 
-        {/* Header */}
+        {/* ====================================
+            HEADER
+        ===================================== */}
+
         <motion.div
-          initial={{ opacity: 0, y: -15 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1, duration: 0.4 }}
+          initial={{
+            opacity: 0,
+            y: -15,
+          }}
+          animate={{
+            opacity: 1,
+            y: 0,
+          }}
+          transition={{
+            delay: 0.1,
+            duration: 0.4,
+          }}
           className="relative mb-8 flex flex-col items-center text-center"
         >
           <motion.div
@@ -135,7 +254,11 @@ const LoginForm = () => {
             }}
             className="mb-5 flex h-16 w-16 items-center justify-center rounded-2xl border border-emerald-400/20 bg-gradient-to-br from-emerald-500 to-teal-500"
           >
-            <Vote size={30} strokeWidth={2.2} className="text-white" />
+            <Vote
+              size={30}
+              strokeWidth={2.2}
+              className="text-white"
+            />
           </motion.div>
 
           <h2 className="text-2xl font-bold tracking-tight text-white sm:text-3xl">
@@ -147,9 +270,19 @@ const LoginForm = () => {
           </p>
         </motion.div>
 
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="relative space-y-5">
-          {/* Email */}
+        {/* ====================================
+            LOGIN FORM
+        ===================================== */}
+
+        <form
+          onSubmit={handleSubmit}
+          className="relative space-y-5"
+        >
+
+          {/* ==================================
+              EMAIL
+          =================================== */}
+
           <div>
             <label
               htmlFor="login-email"
@@ -172,13 +305,17 @@ const LoginForm = () => {
                 value={formData.email}
                 onChange={handleChange}
                 autoComplete="email"
+                disabled={loading}
                 required
-                className="w-full bg-transparent px-3 py-4 text-sm text-white outline-none placeholder:text-slate-500"
+                className="w-full bg-transparent px-3 py-4 text-sm text-white outline-none placeholder:text-slate-500 disabled:cursor-not-allowed disabled:opacity-70"
               />
             </div>
           </div>
 
-          {/* Password */}
+          {/* ==================================
+              PASSWORD
+          =================================== */}
+
           <div>
             <label
               htmlFor="login-password"
@@ -195,25 +332,35 @@ const LoginForm = () => {
 
               <input
                 id="login-password"
-                type={showPassword ? "text" : "password"}
+                type={
+                  showPassword
+                    ? "text"
+                    : "password"
+                }
                 name="password"
                 placeholder="Enter your password"
                 value={formData.password}
                 onChange={handleChange}
                 autoComplete="current-password"
+                disabled={loading}
                 required
-                className="w-full bg-transparent px-3 py-4 text-sm text-white outline-none placeholder:text-slate-500"
+                className="w-full bg-transparent px-3 py-4 text-sm text-white outline-none placeholder:text-slate-500 disabled:cursor-not-allowed disabled:opacity-70"
               />
 
               <button
                 type="button"
-                onClick={() => setShowPassword((prev) => !prev)}
+                onClick={() =>
+                  setShowPassword(
+                    (prev) => !prev
+                  )
+                }
+                disabled={loading}
                 aria-label={
                   showPassword
                     ? "Hide password"
                     : "Show password"
                 }
-                className="rounded-lg p-1.5 text-slate-500 transition-colors hover:text-emerald-400"
+                className="rounded-lg p-1.5 text-slate-500 transition-colors hover:text-emerald-400 disabled:cursor-not-allowed"
               >
                 {showPassword ? (
                   <EyeOff size={18} />
@@ -224,10 +371,21 @@ const LoginForm = () => {
             </div>
           </div>
 
-          {/* Login Button */}
+          {/* ==================================
+              LOGIN BUTTON
+          =================================== */}
+
           <motion.button
-            whileHover={!loading ? { scale: 1.015 } : {}}
-            whileTap={!loading ? { scale: 0.98 } : {}}
+            whileHover={
+              !loading
+                ? { scale: 1.015 }
+                : {}
+            }
+            whileTap={
+              !loading
+                ? { scale: 0.98 }
+                : {}
+            }
             type="submit"
             disabled={loading}
             className="group relative mt-2 flex w-full items-center justify-center gap-2 overflow-hidden rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 py-4 font-semibold text-white shadow-lg shadow-emerald-500/10 transition-all duration-300 hover:shadow-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-60"
@@ -236,12 +394,21 @@ const LoginForm = () => {
 
             {loading ? (
               <>
-                <Loader2 size={19} className="animate-spin" />
-                <span>Signing In...</span>
+                <Loader2
+                  size={19}
+                  className="animate-spin"
+                />
+
+                <span>
+                  Signing In...
+                </span>
               </>
             ) : (
               <>
-                <span>Sign In</span>
+                <span>
+                  Sign In
+                </span>
+
                 <ArrowRight
                   size={18}
                   className="transition-transform duration-300 group-hover:translate-x-1"
@@ -251,18 +418,37 @@ const LoginForm = () => {
           </motion.button>
         </form>
 
-        {/* Email Verification */}
+        {/* ====================================
+            EMAIL VERIFICATION
+        ===================================== */}
+
         <AnimatePresence>
           {showVerifyBox && (
             <motion.div
-              initial={{ opacity: 0, height: 0, y: 10 }}
-              animate={{ opacity: 1, height: "auto", y: 0 }}
-              exit={{ opacity: 0, height: 0, y: -10 }}
-              transition={{ duration: 0.3 }}
+              initial={{
+                opacity: 0,
+                height: 0,
+                y: 10,
+              }}
+              animate={{
+                opacity: 1,
+                height: "auto",
+                y: 0,
+              }}
+              exit={{
+                opacity: 0,
+                height: 0,
+                y: -10,
+              }}
+              transition={{
+                duration: 0.3,
+              }}
               className="overflow-hidden"
             >
               <div className="mt-6 rounded-2xl border border-amber-400/20 bg-amber-400/5 p-5">
+
                 <div className="mb-3 flex items-center gap-3">
+
                   <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-400/10">
                     <ShieldCheck
                       size={19}
@@ -273,33 +459,42 @@ const LoginForm = () => {
                   <h3 className="font-semibold text-amber-300">
                     Email Not Verified
                   </h3>
+
                 </div>
 
                 <p className="mb-4 text-sm leading-6 text-slate-400">
-                  Your email address has not been verified yet.
-                  Verify your OTP to continue.
+                  Your email address has not been verified yet. Verify your OTP to continue.
                 </p>
 
                 <button
                   type="button"
                   onClick={() =>
-                    navigate("/verify-otp", {
-                      state: {
-                        email: verifyEmail,
-                      },
-                    })
+                    navigate(
+                      "/verify-otp",
+                      {
+                        state: {
+                          email:
+                            verifyEmail,
+                        },
+                      }
+                    )
                   }
                   className="w-full rounded-xl bg-amber-400 py-3 font-semibold text-slate-950 transition-all duration-300 hover:bg-amber-300"
                 >
                   Verify Email
                 </button>
+
               </div>
             </motion.div>
           )}
         </AnimatePresence>
 
-        {/* Register */}
+        {/* ====================================
+            REGISTER
+        ===================================== */}
+
         <div className="relative mt-8 border-t border-white/10 pt-6 text-center">
+
           <p className="text-sm text-slate-400">
             Don&apos;t have an account?
           </p>
@@ -311,6 +506,7 @@ const LoginForm = () => {
             <UserPlus size={17} />
             Create Account
           </Link>
+
         </div>
       </div>
     </motion.div>
