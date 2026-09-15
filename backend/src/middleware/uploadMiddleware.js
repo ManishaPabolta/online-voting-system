@@ -1,69 +1,105 @@
 import multer from "multer";
+import path from "path";
+import fs from "fs";
 
-const storage =
-  multer.diskStorage({
+// =========================================================
+// UPLOAD DIRECTORY
+// =========================================================
 
-    destination:
-      function (
-        req,
-        file,
-        cb
-      ) {
+const uploadDirectory = "src/uploads";
 
-        cb(
-          null,
-          "src/uploads"
-        );
-      },
-
-    filename:
-      function (
-        req,
-        file,
-        cb
-      ) {
-
-        cb(
-          null,
-          `${Date.now()}-${file.originalname}`
-        );
-      },
+if (!fs.existsSync(uploadDirectory)) {
+  fs.mkdirSync(uploadDirectory, {
+    recursive: true,
   });
+}
 
-/**
- * FILE FILTER
- */
-const fileFilter =
-  (req, file, cb) => {
+// =========================================================
+// STORAGE
+// =========================================================
 
-    if (
-      file.mimetype.startsWith(
-        "image/"
-      )
-    ) {
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, uploadDirectory);
+  },
 
-      cb(null, true);
+  filename: (req, file, cb) => {
+    const extension = path
+      .extname(file.originalname)
+      .toLowerCase();
 
-    } else {
+    const safeName = `id-proof-${Date.now()}-${Math.round(
+      Math.random() * 1e9
+    )}${extension}`;
 
-      cb(
-        new Error(
-          "Only image files allowed"
-        ),
-        false
-      );
-    }
-  };
+    cb(null, safeName);
+  },
+});
+
+// =========================================================
+// ALLOWED MIME TYPES
+// =========================================================
+
+const allowedMimeTypes = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/jpg",
+  "application/pdf",
+]);
+
+// =========================================================
+// ALLOWED EXTENSIONS
+// =========================================================
+
+const allowedExtensions = new Set([
+  ".jpg",
+  ".jpeg",
+  ".png",
+  ".pdf",
+]);
+
+// =========================================================
+// FILE FILTER
+// =========================================================
+
+const fileFilter = (req, file, cb) => {
+  const extension = path
+    .extname(file.originalname)
+    .toLowerCase();
+
+  const isMimeTypeAllowed =
+    allowedMimeTypes.has(file.mimetype);
+
+  const isExtensionAllowed =
+    allowedExtensions.has(extension);
+
+  if (
+    isMimeTypeAllowed &&
+    isExtensionAllowed
+  ) {
+    return cb(null, true);
+  }
+
+  return cb(
+    new Error(
+      "Only JPG, JPEG, PNG and PDF files are allowed."
+    ),
+    false
+  );
+};
+
+// =========================================================
+// MULTER CONFIGURATION
+// =========================================================
 
 const upload = multer({
-
   storage,
 
   fileFilter,
 
   limits: {
-    fileSize:
-      5 * 1024 * 1024,
+    fileSize: 5 * 1024 * 1024,
+    files: 1,
   },
 });
 

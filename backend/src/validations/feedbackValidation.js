@@ -1,33 +1,43 @@
 import { body } from "express-validator";
 
+// ======================================================
+// FEEDBACK VALIDATION
+// ======================================================
+
 export const feedbackValidation = [
+  // ====================================================
+  // MESSAGE
+  // ====================================================
+
   body("message")
+    .trim()
     .notEmpty()
     .withMessage(
-      "Feedback message required"
+      "Feedback message is required."
     )
-
-    .isLength({ min: 5 })
+    .isLength({
+      min: 5,
+      max: 2000,
+    })
     .withMessage(
-      "Feedback too short"
+      "Feedback message must be between 5 and 2000 characters."
     ),
 
+  // ====================================================
+  // RATING
+  // ====================================================
+
   body("rating")
-    .isNumeric()
+    .notEmpty()
     .withMessage(
-      "Rating must be number"
+      "Rating is required."
     )
-
-    .custom((value) => {
-      if (
-        value < 1 ||
-        value > 5
-      ) {
-        throw new Error(
-          "Rating must be between 1 and 5"
-        );
-      }
-
-      return true;
-    }),
+    .isInt({
+      min: 1,
+      max: 5,
+    })
+    .withMessage(
+      "Rating must be an integer between 1 and 5."
+    )
+    .toInt(),
 ];

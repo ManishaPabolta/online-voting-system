@@ -11,12 +11,59 @@ import authMiddleware from "../middleware/authMiddleware.js";
 
 const router = express.Router();
 
-router.post("/register", registerUser);
+/*
+|--------------------------------------------------------------------------
+| AUTHENTICATION ROUTES
+|--------------------------------------------------------------------------
+*/
 
-router.post("/verify-otp", verifyOTP);
+/*
+ * Register new voter
+ *
+ * POST /api/auth/register
+ *
+ * Public route
+ */
+router.post(
+  "/register",
+  registerUser
+);
 
-router.post("/login", loginUser);
+/*
+ * Verify registration email OTP
+ *
+ * POST /api/auth/verify-otp
+ *
+ * Public route
+ */
+router.post(
+  "/verify-otp",
+  verifyOTP
+);
 
-router.get("/me", authMiddleware, getMe);
+/*
+ * Login user
+ *
+ * POST /api/auth/login
+ *
+ * Public route
+ */
+router.post(
+  "/login",
+  loginUser
+);
+
+/*
+ * Get currently authenticated user
+ *
+ * GET /api/auth/me
+ *
+ * Protected route
+ */
+router.get(
+  "/me",
+  authMiddleware,
+  getMe
+);
 
 export default router;

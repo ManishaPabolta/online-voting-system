@@ -4,48 +4,41 @@ const supportSocket = () => {
   const io = getIO();
 
   io.on("connection", (socket) => {
-    console.log(
-      "Support Socket Connected:",
-      socket.id
-    );
+    console.log(`Support socket connected: ${socket.id}`);
 
-    socket.on(
-      "join-support-room",
-      (roomId) => {
-        socket.join(roomId);
-
-        console.log(
-          `Joined support room: ${roomId}`
-        );
+    socket.on("join-support-room", (roomId) => {
+      if (!roomId) {
+        return;
       }
-    );
 
-    socket.on(
-      "support-message",
-      (data) => {
-        io.to(data.roomId).emit(
-          "receive-support-message",
-          {
-            sender:
-              data.sender,
-            message:
-              data.message,
-            createdAt:
-              new Date(),
-          }
-        );
-      }
-    );
+      const roomName = `support:${String(roomId)}`;
 
-    socket.on(
-      "disconnect",
-      () => {
-        console.log(
-          "Support Socket Disconnected:",
-          socket.id
-        );
+      socket.join(roomName);
+
+      console.log(
+        `Socket ${socket.id} joined support room: ${roomName}`
+      );
+    });
+
+    socket.on("support-message", (data) => {
+      if (!data?.roomId || !data?.message) {
+        return;
       }
-    );
+
+      const roomName = `support:${String(data.roomId)}`;
+
+      io.to(roomName).emit("receive-support-message", {
+        sender: data.sender || null,
+        message: String(data.message),
+        createdAt: new Date(),
+      });
+    });
+
+    socket.on("disconnect", (reason) => {
+      console.log(
+        `Support socket disconnected: ${socket.id} | Reason: ${reason}`
+      );
+    });
   });
 };
 

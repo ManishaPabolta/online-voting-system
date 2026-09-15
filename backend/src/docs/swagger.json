@@ -4,49 +4,411 @@
   "info": {
     "title": "Online Voting System API",
     "version": "1.0.0",
-    "description": "Secure Online Voting Backend APIs"
+    "description": "Secure Online Voting System Backend APIs for authentication, voter profiles, elections, candidates, voting, notifications and administration."
   },
 
   "servers": [
     {
-      "url": "http://localhost:5000"
+      "url": "http://localhost:5000",
+      "description": "Local Development Server"
+    },
+    {
+      "url": "https://learning-rbko.onrender.com",
+      "description": "Production Server"
     }
   ],
+
+  "tags": [
+    {
+      "name": "Authentication",
+      "description": "User registration, OTP verification and login"
+    },
+    {
+      "name": "Users",
+      "description": "Admin user management"
+    },
+    {
+      "name": "Voter Profile",
+      "description": "Voter profile management"
+    },
+    {
+      "name": "Elections",
+      "description": "Election management"
+    },
+    {
+      "name": "Candidates",
+      "description": "Candidate management"
+    },
+    {
+      "name": "Voting",
+      "description": "Voting and election results"
+    },
+    {
+      "name": "Notifications",
+      "description": "User notifications"
+    }
+  ],
+
+  "components": {
+    "securitySchemes": {
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
+
+    "schemas": {
+      "RegisterRequest": {
+        "type": "object",
+        "required": [
+          "name",
+          "email",
+          "password"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "Manisha Pabolta"
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "example": "user@example.com"
+          },
+          "password": {
+            "type": "string",
+            "format": "password",
+            "minLength": 6,
+            "example": "Password@123"
+          }
+        }
+      },
+
+      "LoginRequest": {
+        "type": "object",
+        "required": [
+          "email",
+          "password"
+        ],
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "example": "user@example.com"
+          },
+          "password": {
+            "type": "string",
+            "format": "password",
+            "example": "Password@123"
+          }
+        }
+      },
+
+      "OTPRequest": {
+        "type": "object",
+        "required": [
+          "otp"
+        ],
+        "properties": {
+          "otp": {
+            "type": "string",
+            "pattern": "^[0-9]{6}$",
+            "example": "123456"
+          }
+        }
+      },
+
+      "Election": {
+        "type": "object",
+        "properties": {
+          "_id": {
+            "type": "string",
+            "example": "65abc123456789abcdef1234"
+          },
+          "title": {
+            "type": "string",
+            "example": "Student Council Election 2026"
+          },
+          "description": {
+            "type": "string",
+            "example": "Annual student council election"
+          },
+          "electionType": {
+            "type": "string",
+            "enum": [
+              "PRESIDENTIAL",
+              "PARLIAMENTARY",
+              "ASSEMBLY",
+              "LOCAL",
+              "COLLEGE",
+              "ORGANIZATION",
+              "OTHER"
+            ],
+            "example": "COLLEGE"
+          },
+          "startDate": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "endDate": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "DRAFT",
+              "UPCOMING",
+              "LIVE",
+              "COMPLETED",
+              "CANCELLED"
+            ],
+            "example": "UPCOMING"
+          },
+          "isPublished": {
+            "type": "boolean",
+            "example": true
+          },
+          "isResultsPublished": {
+            "type": "boolean",
+            "example": false
+          }
+        }
+      },
+
+      "Candidate": {
+        "type": "object",
+        "properties": {
+          "_id": {
+            "type": "string",
+            "example": "65abc123456789abcdef5678"
+          },
+          "election": {
+            "type": "string",
+            "example": "65abc123456789abcdef1234"
+          },
+          "name": {
+            "type": "string",
+            "example": "Rahul Sharma"
+          },
+          "party": {
+            "type": "string",
+            "example": "Student Unity Party"
+          },
+          "symbol": {
+            "type": "string",
+            "example": "⭐"
+          },
+          "photo": {
+            "type": "string",
+            "example": "https://example.com/photo.jpg"
+          },
+          "manifesto": {
+            "type": "string"
+          },
+          "biography": {
+            "type": "string"
+          },
+          "experience": {
+            "type": "string"
+          },
+          "position": {
+            "type": "string",
+            "example": "President"
+          },
+          "isActive": {
+            "type": "boolean",
+            "example": true
+          }
+        }
+      },
+
+      "VoteRequest": {
+        "type": "object",
+        "required": [
+          "electionId",
+          "candidateId",
+          "latitude",
+          "longitude"
+        ],
+        "properties": {
+          "electionId": {
+            "type": "string",
+            "example": "65abc123456789abcdef1234"
+          },
+          "candidateId": {
+            "type": "string",
+            "example": "65abc123456789abcdef5678"
+          },
+          "latitude": {
+            "type": "number",
+            "format": "double",
+            "example": 28.6139
+          },
+          "longitude": {
+            "type": "number",
+            "format": "double",
+            "example": 77.209
+          }
+        }
+      },
+
+      "Profile": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "Manisha Pabolta"
+          },
+          "age": {
+            "type": "integer",
+            "minimum": 18,
+            "example": 21
+          },
+          "gender": {
+            "type": "string",
+            "enum": [
+              "Male",
+              "Female",
+              "Other"
+            ],
+            "example": "Female"
+          },
+          "address": {
+            "type": "string",
+            "example": "New Delhi"
+          },
+          "city": {
+            "type": "string",
+            "example": "Delhi"
+          },
+          "state": {
+            "type": "string",
+            "example": "Delhi"
+          },
+          "pincode": {
+            "type": "string",
+            "example": "110001"
+          },
+          "phone": {
+            "type": "string",
+            "example": "+919876543210"
+          },
+          "aadhaarNumber": {
+            "type": "string",
+            "example": "123456789012"
+          },
+          "voterId": {
+            "type": "string",
+            "example": "VOTER-123456"
+          }
+        }
+      },
+
+      "Notification": {
+        "type": "object",
+        "properties": {
+          "_id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string",
+            "example": "Election Started"
+          },
+          "message": {
+            "type": "string",
+            "example": "The election is now live."
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "NEW_ELECTION",
+              "ELECTION_UPDATED",
+              "ELECTION_STARTED",
+              "ELECTION_EXPIRED",
+              "ELECTION_CANCELLED",
+              "VOTE_CAST",
+              "VOTE_CONFIRMATION",
+              "WINNER_DECLARED",
+              "RESULT_PUBLISHED",
+              "CANDIDATE_ADDED",
+              "PROFILE_UPDATE",
+              "OTP",
+              "SECURITY",
+              "SYSTEM",
+              "FEEDBACK",
+              "SUPPORT",
+              "REPORT"
+            ]
+          },
+          "isRead": {
+            "type": "boolean",
+            "example": false
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      }
+    }
+  },
 
   "paths": {
     "/api/auth/register": {
       "post": {
+        "tags": [
+          "Authentication"
+        ],
         "summary": "Register User",
-
+        "description": "Register a new user account and send OTP for verification.",
         "requestBody": {
           "required": true,
-
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-
-                "properties": {
-                  "name": {
-                    "type": "string"
-                  },
-
-                  "email": {
-                    "type": "string"
-                  },
-
-                  "password": {
-                    "type": "string"
-                  }
-                }
+                "$ref": "#/components/schemas/RegisterRequest"
               }
             }
           }
         },
-
         "responses": {
           "201": {
-            "description": "User Registered Successfully"
+            "description": "User registered successfully"
+          },
+          "400": {
+            "description": "Validation error"
+          },
+          "409": {
+            "description": "User already exists"
+          }
+        }
+      }
+    },
+
+    "/api/auth/verify-otp": {
+      "post": {
+        "tags": [
+          "Authentication"
+        ],
+        "summary": "Verify OTP",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OTPRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OTP verified successfully"
+          },
+          "400": {
+            "description": "Invalid or expired OTP"
           }
         }
       }
@@ -54,23 +416,245 @@
 
     "/api/auth/login": {
       "post": {
+        "tags": [
+          "Authentication"
+        ],
         "summary": "Login User",
-
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
-            "description": "Login Successful"
+            "description": "Login successful"
+          },
+          "401": {
+            "description": "Invalid credentials"
           }
         }
       }
     },
 
-    "/api/vote/cast": {
-      "post": {
-        "summary": "Cast Vote",
+    "/api/auth/me": {
+      "get": {
+        "tags": [
+          "Authentication"
+        ],
+        "summary": "Get Current User",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current user details"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
 
+    "/api/users": {
+      "get": {
+        "tags": [
+          "Users"
+        ],
+        "summary": "Get All Users",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Users retrieved successfully"
+          },
+          "403": {
+            "description": "Admin access required"
+          }
+        }
+      }
+    },
+
+    "/api/users/{id}": {
+      "get": {
+        "tags": [
+          "Users"
+        ],
+        "summary": "Get User By ID",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "User retrieved successfully"
+          }
+        }
+      },
+
+      "delete": {
+        "tags": [
+          "Users"
+        ],
+        "summary": "Delete User",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "User deleted successfully"
+          }
+        }
+      }
+    },
+
+    "/api/users/{id}/status": {
+      "patch": {
+        "tags": [
+          "Users"
+        ],
+        "summary": "Toggle User Status",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "User status updated successfully"
+          }
+        }
+      }
+    },
+
+    "/api/profile": {
+      "post": {
+        "tags": [
+          "Voter Profile"
+        ],
+        "summary": "Create Voter Profile",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/Profile"
+                  }
+                ],
+                "type": "object",
+                "properties": {
+                  "idProof": {
+                    "type": "string",
+                    "format": "binary"
+                  }
+                }
+              }
+            }
+          }
+        },
         "responses": {
           "201": {
-            "description": "Vote Cast Successfully"
+            "description": "Voter profile created successfully"
+          }
+        }
+      },
+
+      "put": {
+        "tags": [
+          "Voter Profile"
+        ],
+        "summary": "Update Voter Profile",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Voter profile updated successfully"
+          }
+        }
+      }
+    },
+
+    "/api/profile/me": {
+      "get": {
+        "tags": [
+          "Voter Profile"
+        ],
+        "summary": "Get My Voter Profile",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Voter profile retrieved successfully"
+          }
+        }
+      }
+    },
+
+    "/api/elections/public": {
+      "get": {
+        "tags": [
+          "Elections"
+        ],
+        "summary": "Get Public Elections",
+        "responses": {
+          "200": {
+            "description": "Public elections retrieved successfully"
           }
         }
       }
@@ -78,11 +662,517 @@
 
     "/api/elections": {
       "get": {
+        "tags": [
+          "Elections"
+        ],
         "summary": "Get All Elections",
-
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
         "responses": {
           "200": {
-            "description": "Election List"
+            "description": "All elections retrieved successfully"
+          }
+        }
+      },
+
+      "post": {
+        "tags": [
+          "Elections"
+        ],
+        "summary": "Create Election",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Election"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Election created successfully"
+          }
+        }
+      }
+    },
+
+    "/api/elections/{id}": {
+      "get": {
+        "tags": [
+          "Elections"
+        ],
+        "summary": "Get Election By ID",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Election details"
+          }
+        }
+      },
+
+      "put": {
+        "tags": [
+          "Elections"
+        ],
+        "summary": "Update Election",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Election updated successfully"
+          }
+        }
+      },
+
+      "delete": {
+        "tags": [
+          "Elections"
+        ],
+        "summary": "Delete Election",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Election deleted successfully"
+          }
+        }
+      }
+    },
+
+    "/api/elections/{id}/publish": {
+      "patch": {
+        "tags": [
+          "Elections"
+        ],
+        "summary": "Publish Election",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Election published successfully"
+          }
+        }
+      }
+    },
+
+    "/api/elections/{id}/cancel": {
+      "patch": {
+        "tags": [
+          "Elections"
+        ],
+        "summary": "Cancel Election",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Election cancelled successfully"
+          }
+        }
+      }
+    },
+
+    "/api/candidates": {
+      "get": {
+        "tags": [
+          "Candidates"
+        ],
+        "summary": "Get Candidates",
+        "parameters": [
+          {
+            "name": "electionId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Candidates retrieved successfully"
+          }
+        }
+      },
+
+      "post": {
+        "tags": [
+          "Candidates"
+        ],
+        "summary": "Create Candidate",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Candidate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Candidate created successfully"
+          }
+        }
+      }
+    },
+
+    "/api/candidates/{id}": {
+      "get": {
+        "tags": [
+          "Candidates"
+        ],
+        "summary": "Get Candidate By ID",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Candidate details"
+          }
+        }
+      },
+
+      "put": {
+        "tags": [
+          "Candidates"
+        ],
+        "summary": "Update Candidate",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Candidate updated successfully"
+          }
+        }
+      },
+
+      "delete": {
+        "tags": [
+          "Candidates"
+        ],
+        "summary": "Delete Candidate",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Candidate deleted successfully"
+          }
+        }
+      }
+    },
+
+    "/api/vote/cast": {
+      "post": {
+        "tags": [
+          "Voting"
+        ],
+        "summary": "Cast Vote",
+        "description": "Cast a secure vote after voter profile, eligibility, voting password, location and election checks.",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VoteRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Vote cast successfully"
+          },
+          "400": {
+            "description": "Invalid voting request"
+          },
+          "409": {
+            "description": "User has already voted"
+          }
+        }
+      }
+    },
+
+    "/api/vote/status": {
+      "get": {
+        "tags": [
+          "Voting"
+        ],
+        "summary": "Get My Vote Status",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Vote status retrieved successfully"
+          }
+        }
+      }
+    },
+
+    "/api/vote/status/{electionId}": {
+      "get": {
+        "tags": [
+          "Voting"
+        ],
+        "summary": "Check Election Vote Status",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "electionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Election vote status retrieved"
+          }
+        }
+      }
+    },
+
+    "/api/vote/results/{id}": {
+      "get": {
+        "tags": [
+          "Voting"
+        ],
+        "summary": "Get Election Results",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Election results retrieved successfully"
+          },
+          "403": {
+            "description": "Results are not available"
+          }
+        }
+      }
+    },
+
+    "/api/notifications": {
+      "get": {
+        "tags": [
+          "Notifications"
+        ],
+        "summary": "Get Notifications",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Notifications retrieved successfully"
+          }
+        }
+      }
+    },
+
+    "/api/notifications/{id}/read": {
+      "patch": {
+        "tags": [
+          "Notifications"
+        ],
+        "summary": "Mark Notification As Read",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Notification marked as read"
+          }
+        }
+      }
+    },
+
+    "/api/notifications/read-all": {
+      "patch": {
+        "tags": [
+          "Notifications"
+        ],
+        "summary": "Mark All Notifications As Read",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "All notifications marked as read"
+          }
+        }
+      }
+    },
+
+    "/api/notifications/{id}": {
+      "delete": {
+        "tags": [
+          "Notifications"
+        ],
+        "summary": "Delete Notification",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Notification deleted successfully"
           }
         }
       }

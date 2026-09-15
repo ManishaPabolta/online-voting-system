@@ -1,35 +1,58 @@
 import cron from "node-cron";
+
 import VotingLink from "../models/VotingLink.js";
 
-const expireVotingLinks = () => {
-  cron.schedule("*/5 * * * *", async () => {
-    try {
-      console.log("Checking expired voting links...");
+// ======================================================
+// EXPIRE VOTING LINKS
+// ======================================================
 
-      const currentTime = new Date();
+const expireVotingLinksNow = async () => {
+  try {
+    const currentTime = new Date();
 
-      const expiredLinks = await VotingLink.updateMany(
-        {
-          expiresAt: { $lt: currentTime },
-          isActive: true,
+    console.log(
+      `[CRON] Checking expired voting links at ${currentTime.toISOString()}`
+    );
+
+    const expiredLinks = await VotingLink.updateMany(
+      {
+        isActive: true,
+        expiresAt: {
+          $lte: currentTime,
         },
-        {
-          $set: {
-            isActive: false,
-          },
-        }
-      );
+      },
+      {
+        $set: {
+          isActive: false,
+        },
+      }
+    );
 
-      console.log(
-        `${expiredLinks.modifiedCount} voting links expired`
-      );
+    console.log(
+      `[CRON] ${expiredLinks.modifiedCount} voting link(s) expired.`
+    );
+  } catch (error) {
+    console.error(
+      "[CRON] Expire Voting Link Error:",
+      error.message
+    );
+  }
+};
 
-    } catch (error) {
-      console.log(
-        "Expire Voting Link Error:",
-        error.message
-      );
-    }
+// ======================================================
+// START CRON JOB
+// ======================================================
+
+const expireVotingLinks = () => {
+  console.log(
+    "[CRON] Voting link expiry job started."
+  );
+
+  /*
+   * Runs every 5 minutes.
+   */
+  cron.schedule("*/5 * * * *", async () => {
+    await expireVotingLinksNow();
   });
 };
 

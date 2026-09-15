@@ -1,31 +1,37 @@
 import API from "./axios";
 
-export const getNotifications =
-  async () => {
-    const response =
-      await API.get(
-        "/notifications"
-      );
+// ==========================================
+// GET NOTIFICATIONS
+// ==========================================
 
-    return response.data;
-  };
+export const getNotifications = async () => {
+  const response = await API.get("/notifications");
+  return response.data;
+};
 
-export const markAsRead =
-  async (id) => {
-    const response =
-      await API.put(
-        `/notifications/${id}`
-      );
+// ==========================================
+// MARK ONE AS READ
+// ==========================================
 
-    return response.data;
-  };
+export const markAsRead = async (id) => {
+  const response = await API.patch(`/notifications/${id}/read`);
+  return response.data;
+};
 
-export const deleteNotification =
-  async (id) => {
-    const response =
-      await API.delete(
-        `/notifications/${id}`
-      );
+// ==========================================
+// MARK ALL AS READ
+// ==========================================
 
-    return response.data;
-  };
+export const markAllNotificationsAsRead = async () => {
+  const response = await API.patch("/notifications/read-all");
+  return response.data;
+};
+
+// ==========================================
+// DELETE NOTIFICATION
+// ==========================================
+
+export const deleteNotification = async (id) => {
+  const response = await API.delete(`/notifications/${id}`);
+  return response.data;
+};

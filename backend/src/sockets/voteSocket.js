@@ -4,45 +4,43 @@ const voteSocket = () => {
   const io = getIO();
 
   io.on("connection", (socket) => {
-    console.log(
-      "Vote Socket Connected:",
-      socket.id
-    );
+    console.log(`Vote socket connected: ${socket.id}`);
 
-    socket.on(
-      "join-election",
-      (electionId) => {
-        socket.join(electionId);
-
-        console.log(
-          `User joined election room: ${electionId}`
-        );
+    socket.on("join-election", (electionId) => {
+      if (!electionId) {
+        return;
       }
-    );
 
-    socket.on(
-      "vote-casted",
-      (data) => {
-        io.to(data.electionId).emit(
-          "vote-update",
-          {
-            message:
-              "New vote received",
-            data,
-          }
-        );
-      }
-    );
+      const roomName = `election:${String(electionId)}`;
 
-    socket.on(
-      "disconnect",
-      () => {
-        console.log(
-          "Vote Socket Disconnected:",
-          socket.id
-        );
+      socket.join(roomName);
+
+      console.log(
+        `Socket ${socket.id} joined election room: ${roomName}`
+      );
+    });
+
+    socket.on("vote-casted", (data) => {
+      if (!data?.electionId) {
+        return;
       }
-    );
+
+      const roomName = `election:${String(data.electionId)}`;
+
+      io.to(roomName).emit("vote-update", {
+        message: "New vote received",
+        data: {
+          electionId: data.electionId,
+          castAt: data.castAt || new Date(),
+        },
+      });
+    });
+
+    socket.on("disconnect", (reason) => {
+      console.log(
+        `Vote socket disconnected: ${socket.id} | Reason: ${reason}`
+      );
+    });
   });
 };
 

@@ -4,42 +4,60 @@ import {
   Route,
 } from "react-router-dom";
 
+// ==========================================
+// PUBLIC PAGES
+// ==========================================
+
 import Home from "../pages/Home";
 import Login from "../pages/Login";
 import Register from "../pages/Register";
 import VerifyOTP from "../pages/VerifyOTP";
 import Elections from "../pages/Elections";
 import ElectionDetails from "../pages/ElectionDetails";
+import FAQ from "../pages/FAQ";
+import NotFound from "../pages/NotFound";
+
+// ==========================================
+// PROTECTED USER PAGES
+// ==========================================
+
 import VotePage from "../pages/VotePage";
 import Profile from "../pages/Profile";
 import Dashboard from "../pages/Dashboard";
-import Admin from "../pages/Admin";
 import Notifications from "../pages/Notifications";
 import Support from "../pages/Support";
 import Feedback from "../pages/Feedback";
-import FAQ from "../pages/FAQ";
+
+// ==========================================
+// ADMIN PAGES
+// ==========================================
+
+import Admin from "../pages/Admin";
 import Reports from "../pages/Reports";
-import NotFound from "../pages/NotFound";
+
+// ==========================================
+// ROUTE GUARDS
+// ==========================================
 
 import ProtectedRoute from "../components/common/ProtectedRoute";
 import AdminRoute from "../components/common/AdminRoute";
 
 const AppRoutes = () => {
   return (
-
     <BrowserRouter>
-
       <Routes>
 
-        {/* HOME */}
+        {/* ==================================================
+            PUBLIC ROUTES
+        ================================================== */}
 
+        {/* Home */}
         <Route
           path="/"
           element={<Home />}
         />
 
-        {/* AUTH */}
-
+        {/* Authentication */}
         <Route
           path="/login"
           element={<Login />}
@@ -55,136 +73,125 @@ const AppRoutes = () => {
           element={<VerifyOTP />}
         />
 
-        {/* ELECTIONS */}
-
+        {/* Elections */}
         <Route
           path="/elections"
           element={<Elections />}
         />
 
+        {/* Election Details */}
         <Route
           path="/elections/:id"
-          element={
-            <ProtectedRoute>
-
-              <ElectionDetails />
-
-            </ProtectedRoute>
-          }
-        />
-
-        {/* VOTING */}
-
-        <Route
-          path="/vote"
-          element={
-            <ProtectedRoute>
-
-              <VotePage />
-
-            </ProtectedRoute>
-          }
-        />
-
-        {/* PROFILE */}
-
-        <Route
-          path="/profile"
-          element={
-            <ProtectedRoute>
-
-              <Profile />
-
-            </ProtectedRoute>
-          }
-        />
-
-        {/* DASHBOARD */}
-
-        <Route
-          path="/dashboard"
-          element={
-            <ProtectedRoute>
-
-              <Dashboard />
-
-            </ProtectedRoute>
-          }
-        />
-
-        {/* NOTIFICATIONS */}
-
-        <Route
-          path="/notifications"
-          element={
-            <ProtectedRoute>
-
-              <Notifications />
-
-            </ProtectedRoute>
-          }
-        />
-
-        {/* SUPPORT */}
-
-        <Route
-          path="/support"
-          element={
-            <ProtectedRoute>
-
-              <Support />
-
-            </ProtectedRoute>
-          }
-        />
-
-        {/* FEEDBACK */}
-
-        <Route
-          path="/feedback"
-          element={
-            <ProtectedRoute>
-
-              <Feedback />
-
-            </ProtectedRoute>
-          }
+          element={<ElectionDetails />}
         />
 
         {/* FAQ */}
-
         <Route
           path="/faq"
           element={<FAQ />}
         />
 
-        {/* REPORTS */}
+        {/* ==================================================
+            PROTECTED USER ROUTES
+        ================================================== */}
 
+        {/* User Dashboard */}
         <Route
-          path="/reports"
+          path="/dashboard"
           element={
             <ProtectedRoute>
-
-              <Reports />
-
+              <Dashboard />
             </ProtectedRoute>
           }
         />
 
-        {/* ADMIN */}
+        {/* Profile */}
+        <Route
+          path="/profile"
+          element={
+            <ProtectedRoute>
+              <Profile />
+            </ProtectedRoute>
+          }
+        />
 
+        {/* Vote - Generic */}
+        <Route
+          path="/vote"
+          element={
+            <ProtectedRoute>
+              <VotePage />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Vote - Specific Election */}
+        <Route
+          path="/vote/:electionId"
+          element={
+            <ProtectedRoute>
+              <VotePage />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Notifications */}
+        <Route
+          path="/notifications"
+          element={
+            <ProtectedRoute>
+              <Notifications />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Support */}
+        <Route
+          path="/support"
+          element={
+            <ProtectedRoute>
+              <Support />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Feedback */}
+        <Route
+          path="/feedback"
+          element={
+            <ProtectedRoute>
+              <Feedback />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* ==================================================
+            ADMIN ROUTES
+        ================================================== */}
+
+        {/* Admin Dashboard */}
         <Route
           path="/admin"
           element={
             <AdminRoute>
-
               <Admin />
-
             </AdminRoute>
           }
         />
 
-        {/* 404 PAGE */}
+        {/* Admin Reports */}
+        <Route
+          path="/reports"
+          element={
+            <AdminRoute>
+              <Reports />
+            </AdminRoute>
+          }
+        />
+
+        {/* ==================================================
+            404 - PAGE NOT FOUND
+        ================================================== */}
 
         <Route
           path="*"
@@ -192,7 +199,6 @@ const AppRoutes = () => {
         />
 
       </Routes>
-
     </BrowserRouter>
   );
 };

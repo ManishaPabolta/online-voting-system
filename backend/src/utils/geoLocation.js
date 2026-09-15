@@ -1,14 +1,20 @@
 const geoLocation = (req) => {
+  if (!req) {
+    return {
+      ipAddress: "",
+      userAgent: "",
+    };
+  }
+
   return {
     ipAddress:
-      req.headers[
-        "x-forwarded-for"
-      ] || req.socket.remoteAddress,
+      req.ip ||
+      req.socket?.remoteAddress ||
+      "",
 
     userAgent:
-      req.headers[
-        "user-agent"
-      ],
+      req.get("user-agent") ||
+      "",
   };
 };
 

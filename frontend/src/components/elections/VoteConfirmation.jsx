@@ -1,62 +1,79 @@
+import { motion } from "framer-motion";
 import {
-  CheckCircle,
+  CheckCircle2,
+  Copy,
+  ShieldCheck,
 } from "lucide-react";
+import toast from "react-hot-toast";
 
-const VoteConfirmation = ({
-  voteId,
-}) => {
+const VoteConfirmation = ({ voteId }) => {
+  const copyVoteId = async () => {
+    if (!voteId) return;
+
+    try {
+      await navigator.clipboard.writeText(voteId);
+      toast.success("Vote tracking ID copied");
+    } catch {
+      toast.error("Unable to copy tracking ID");
+    }
+  };
 
   return (
+    <motion.div
+      initial={{ opacity: 0, scale: 0.96, y: 20 }}
+      animate={{ opacity: 1, scale: 1, y: 0 }}
+      transition={{ duration: 0.45 }}
+      className="mx-auto w-full max-w-2xl overflow-hidden rounded-3xl border border-emerald-400/20 bg-emerald-500/[0.06] p-6 text-center shadow-2xl shadow-emerald-500/5 backdrop-blur-xl sm:p-10"
+    >
+      {/* Icon */}
+      <motion.div
+        initial={{ scale: 0 }}
+        animate={{ scale: 1 }}
+        transition={{
+          delay: 0.15,
+          type: "spring",
+          stiffness: 180,
+        }}
+        className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 shadow-xl shadow-emerald-500/20"
+      >
+        <CheckCircle2 size={44} className="text-white" />
+      </motion.div>
 
-    <div className="bg-green-500/10 border border-green-500/30 rounded-3xl p-10 text-center shadow-2xl">
-
-      {/* ================= ICON ================= */}
-      <div className="flex justify-center mb-5">
-
-        <div className="bg-green-600 p-5 rounded-full">
-
-          <CheckCircle
-            size={50}
-            className="text-white"
-          />
-
-        </div>
-
-      </div>
-
-      {/* ================= TITLE ================= */}
-      <h1 className="text-4xl font-bold text-green-400">
-
+      {/* Heading */}
+      <h1 className="mt-7 text-3xl font-black text-white sm:text-4xl">
         Vote Successfully Cast
-
       </h1>
 
-      {/* ================= MESSAGE ================= */}
-      <p className="text-gray-300 mt-4">
-
-        Your vote has been securely
-        recorded in the system.
-
+      <p className="mx-auto mt-4 max-w-lg text-sm leading-6 text-slate-400 sm:text-base">
+        Your vote has been securely recorded in the voting system.
+        Keep your tracking ID for your records.
       </p>
 
-      {/* ================= VOTE ID ================= */}
-      <div className="mt-6 bg-white/10 rounded-2xl py-4 px-4">
-
-        <p className="text-sm text-gray-400">
-
+      {/* Tracking ID */}
+      <div className="mt-8 rounded-2xl border border-white/10 bg-slate-950/60 p-5">
+        <div className="flex items-center justify-center gap-2 text-sm font-medium text-slate-400">
+          <ShieldCheck size={17} className="text-emerald-400" />
           Vote Tracking ID
+        </div>
 
-        </p>
+        <div className="mt-4 flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] p-3">
+          <p className="min-w-0 flex-1 break-all text-sm font-bold text-emerald-300 sm:text-base">
+            {voteId || "Generating..."}
+          </p>
 
-        <h2 className="text-xl font-bold mt-2 break-all">
-
-          {voteId || "Generating..."}
-
-        </h2>
-
+          {voteId && (
+            <button
+              type="button"
+              onClick={copyVoteId}
+              className="shrink-0 rounded-lg border border-white/10 p-2 text-slate-400 transition hover:bg-white/10 hover:text-white"
+              aria-label="Copy vote tracking ID"
+            >
+              <Copy size={17} />
+            </button>
+          )}
+        </div>
       </div>
-
-    </div>
+    </motion.div>
   );
 };
 

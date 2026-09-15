@@ -1,40 +1,166 @@
 import { body } from "express-validator";
 
+// ======================================================
+// PROFILE VALIDATION
+// ======================================================
+
 export const profileValidation = [
-  body("age")
-    .isNumeric()
-    .withMessage(
-      "Age must be numeric"
-    )
+  // ====================================================
+  // NAME
+  // ====================================================
 
-    .custom((value) => {
-      if (value < 18) {
-        throw new Error(
-          "You must be at least 18 years old"
-        );
-      }
-
-      return true;
-    }),
-
-  body("address")
+  body("name")
+    .trim()
     .notEmpty()
     .withMessage(
-      "Address is required"
-    ),
-
-  body("aadhaarNumber")
+      "Name is required."
+    )
     .isLength({
-      min: 12,
-      max: 12,
+      min: 2,
+      max: 100,
     })
     .withMessage(
-      "Aadhaar must be 12 digits"
+      "Name must be between 2 and 100 characters."
     ),
 
-  body("voterId")
+  // ====================================================
+  // AGE
+  // ====================================================
+
+  body("age")
     .notEmpty()
     .withMessage(
-      "Voter ID required"
+      "Age is required."
+    )
+    .isInt({
+      min: 18,
+      max: 120,
+    })
+    .withMessage(
+      "Age must be between 18 and 120 years."
+    )
+    .toInt(),
+
+  // ====================================================
+  // GENDER
+  // ====================================================
+
+  body("gender")
+    .notEmpty()
+    .withMessage(
+      "Gender is required."
+    )
+    .isIn([
+      "Male",
+      "Female",
+      "Other",
+    ])
+    .withMessage(
+      "Invalid gender."
+    ),
+
+  // ====================================================
+  // ADDRESS
+  // ====================================================
+
+  body("address")
+    .trim()
+    .notEmpty()
+    .withMessage(
+      "Address is required."
+    )
+    .isLength({
+      max: 1000,
+    })
+    .withMessage(
+      "Address cannot exceed 1000 characters."
+    ),
+
+  // ====================================================
+  // CITY
+  // ====================================================
+
+  body("city")
+    .optional()
+    .trim()
+    .isLength({
+      max: 100,
+    })
+    .withMessage(
+      "City cannot exceed 100 characters."
+    ),
+
+  // ====================================================
+  // STATE
+  // ====================================================
+
+  body("state")
+    .optional()
+    .trim()
+    .isLength({
+      max: 100,
+    })
+    .withMessage(
+      "State cannot exceed 100 characters."
+    ),
+
+  // ====================================================
+  // PINCODE
+  // ====================================================
+
+  body("pincode")
+    .optional()
+    .trim()
+    .matches(/^\d{4,10}$/)
+    .withMessage(
+      "Please enter a valid pincode."
+    ),
+
+  // ====================================================
+  // PHONE
+  // ====================================================
+
+  body("phone")
+    .notEmpty()
+    .withMessage(
+      "Phone number is required."
+    )
+    .trim()
+    .matches(/^[0-9+\-\s()]{7,20}$/)
+    .withMessage(
+      "Please enter a valid phone number."
+    ),
+
+  // ====================================================
+  // AADHAAR
+  // ====================================================
+
+  body("aadhaarNumber")
+    .notEmpty()
+    .withMessage(
+      "Aadhaar number is required."
+    )
+    .trim()
+    .matches(/^\d{12}$/)
+    .withMessage(
+      "Aadhaar number must contain exactly 12 digits."
+    ),
+
+  // ====================================================
+  // VOTER ID
+  // ====================================================
+
+  body("voterId")
+    .trim()
+    .notEmpty()
+    .withMessage(
+      "Voter ID is required."
+    )
+    .isLength({
+      min: 3,
+      max: 50,
+    })
+    .withMessage(
+      "Invalid voter ID."
     ),
 ];

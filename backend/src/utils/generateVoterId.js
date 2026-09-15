@@ -1,10 +1,16 @@
-const generateVoterId = () => {
-  const random =
-    Math.floor(
-      100000 + Math.random() * 900000
-    );
+import crypto from "crypto";
 
-  return `VOTER-${random}`;
+// ======================================================
+// GENERATE VOTER ID
+// ======================================================
+
+const generateVoterId = () => {
+  const randomNumber = crypto.randomInt(
+    100000,
+    1000000
+  );
+
+  return `VOTER-${randomNumber}`;
 };
 
 export default generateVoterId;

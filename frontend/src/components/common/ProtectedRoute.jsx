@@ -1,18 +1,42 @@
 import {
   Navigate,
+  useLocation,
 } from "react-router-dom";
+
+import useAuth from "../../hooks/useAuth";
+import Loader from "./Loader";
 
 const ProtectedRoute = ({
   children,
 }) => {
-  const token =
-    localStorage.getItem(
-      "token"
-    );
+  const {
+    loading,
+    isAuthenticated,
+  } = useAuth();
 
-  if (!token) {
+  const location = useLocation();
+
+  // ==========================================
+  // AUTH CHECK LOADING
+  // ==========================================
+
+  if (loading) {
+    return <Loader />;
+  }
+
+  // ==========================================
+  // NOT AUTHENTICATED
+  // ==========================================
+
+  if (!isAuthenticated) {
     return (
-      <Navigate to="/login" />
+      <Navigate
+        to="/login"
+        replace
+        state={{
+          from: location.pathname,
+        }}
+      />
     );
   }
 

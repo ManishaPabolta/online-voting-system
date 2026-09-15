@@ -1,6 +1,8 @@
 import { useContext } from "react";
 
-import { SocketContext } from "../context/SocketContext";
+import {
+  SocketContext,
+} from "../context/SocketContext";
 
 const useSocket = () => {
   const context =
@@ -8,7 +10,7 @@ const useSocket = () => {
 
   if (!context) {
     throw new Error(
-      "useSocket must be used inside SocketProvider"
+      "useSocket must be used inside SocketProvider."
     );
   }
 

@@ -1,53 +1,151 @@
 import { body } from "express-validator";
 
+// ======================================================
+// CREATE / UPDATE ELECTION VALIDATION
+// ======================================================
+
 export const electionValidation = [
-  // ================= TITLE =================
+  // ====================================================
+  // TITLE
+  // ====================================================
+
   body("title")
     .trim()
     .notEmpty()
-    .withMessage("Election title is required")
-    .isLength({ min: 3, max: 100 })
-    .withMessage("Title must be between 3 to 100 characters"),
+    .withMessage(
+      "Election title is required."
+    )
+    .isLength({
+      min: 3,
+      max: 200,
+    })
+    .withMessage(
+      "Election title must be between 3 and 200 characters."
+    ),
 
-  // ================= DESCRIPTION =================
+  // ====================================================
+  // DESCRIPTION
+  // ====================================================
+
   body("description")
+    .optional()
     .trim()
-    .notEmpty()
-    .withMessage("Election description is required")
-    .isLength({ min: 10 })
-    .withMessage("Description must be at least 10 characters long"),
+    .isLength({
+      max: 10000,
+    })
+    .withMessage(
+      "Description cannot exceed 10,000 characters."
+    ),
 
-  // ================= START DATE =================
+  // ====================================================
+  // ELECTION TYPE
+  // ====================================================
+
+  body("electionType")
+    .optional()
+    .isIn([
+      "PRESIDENTIAL",
+      "PARLIAMENTARY",
+      "ASSEMBLY",
+      "LOCAL",
+      "COLLEGE",
+      "ORGANIZATION",
+      "OTHER",
+    ])
+    .withMessage(
+      "Invalid election type."
+    ),
+
+  // ====================================================
+  // START DATE
+  // ====================================================
+
   body("startDate")
     .notEmpty()
-    .withMessage("Start date is required")
+    .withMessage(
+      "Start date is required."
+    )
     .isISO8601()
-    .withMessage("Start date must be a valid date (YYYY-MM-DD format)")
+    .withMessage(
+      "Start date must be a valid ISO date."
+    )
     .custom((value) => {
       const start = new Date(value);
-      const now = new Date();
 
-      if (start < now.setHours(0, 0, 0, 0)) {
-        throw new Error("Start date cannot be in the past");
+      if (Number.isNaN(start.getTime())) {
+        throw new Error(
+          "Invalid start date."
+        );
+      }
+
+      if (start <= new Date()) {
+        throw new Error(
+          "Start date must be in the future."
+        );
       }
 
       return true;
     }),
 
-  // ================= END DATE =================
+  // ====================================================
+  // END DATE
+  // ====================================================
+
   body("endDate")
     .notEmpty()
-    .withMessage("End date is required")
+    .withMessage(
+      "End date is required."
+    )
     .isISO8601()
-    .withMessage("End date must be a valid date (YYYY-MM-DD format)")
+    .withMessage(
+      "End date must be a valid ISO date."
+    )
     .custom((value, { req }) => {
-      const start = new Date(req.body.startDate);
+      const start = new Date(
+        req.body.startDate
+      );
+
       const end = new Date(value);
 
+      if (
+        Number.isNaN(start.getTime()) ||
+        Number.isNaN(end.getTime())
+      ) {
+        throw new Error(
+          "Invalid election dates."
+        );
+      }
+
       if (end <= start) {
-        throw new Error("End date must be after start date");
+        throw new Error(
+          "End date must be after start date."
+        );
       }
 
       return true;
     }),
+
+  // ====================================================
+  // PUBLISHED
+  // ====================================================
+
+  body("isPublished")
+    .optional()
+    .isBoolean()
+    .withMessage(
+      "isPublished must be true or false."
+    )
+    .toBoolean(),
+
+  // ====================================================
+  // RESULTS BEFORE END
+  // ====================================================
+
+  body("allowResultsBeforeEnd")
+    .optional()
+    .isBoolean()
+    .withMessage(
+      "allowResultsBeforeEnd must be true or false."
+    )
+    .toBoolean(),
 ];

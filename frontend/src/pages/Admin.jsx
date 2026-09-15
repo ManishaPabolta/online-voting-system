@@ -1,36 +1,198 @@
-import React, { useEffect, useState } from "react";
+import {
+  useEffect,
+  useState,
+} from "react";
+
+import {
+  AnimatePresence,
+  motion,
+} from "framer-motion";
+
+import {
+  AlertCircle,
+  CalendarDays,
+  CheckCircle2,
+  ChevronDown,
+  Clock3,
+  Edit3,
+  FileText,
+  Loader2,
+  Plus,
+  RefreshCw,
+  Trash2,
+  X,
+  XCircle,
+} from "lucide-react";
 
 import {
   getAllElections,
   createElection,
   deleteElection,
   updateElection,
+  publishElection,
+  cancelElection,
 } from "../api/electionApi";
 
+const INITIAL_FORM = {
+  title: "",
+  description: "",
+  startDate: "",
+  endDate: "",
+};
+
+const STATUS_STYLES = {
+  DRAFT: {
+    label: "Draft",
+    className:
+      "border-slate-400/20 bg-slate-500/10 text-slate-300",
+  },
+
+  UPCOMING: {
+    label: "Upcoming",
+    className:
+      "border-amber-400/20 bg-amber-500/10 text-amber-300",
+  },
+
+  LIVE: {
+    label: "Live",
+    className:
+      "border-emerald-400/20 bg-emerald-500/10 text-emerald-300",
+  },
+
+  COMPLETED: {
+    label: "Completed",
+    className:
+      "border-teal-400/20 bg-teal-500/10 text-teal-300",
+  },
+
+  CANCELLED: {
+    label: "Cancelled",
+    className:
+      "border-red-400/20 bg-red-500/10 text-red-300",
+  },
+};
+
+const formatDate = (date) => {
+  if (!date) return "Not set";
+
+  const parsedDate = new Date(date);
+
+  if (Number.isNaN(parsedDate.getTime())) {
+    return "Invalid date";
+  }
+
+  return parsedDate.toLocaleDateString(
+    "en-IN",
+    {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    }
+  );
+};
+
+const formatDateTimeLocal = (date) => {
+  if (!date) return "";
+
+  const parsedDate = new Date(date);
+
+  if (Number.isNaN(parsedDate.getTime())) {
+    return "";
+  }
+
+  const offset =
+    parsedDate.getTimezoneOffset();
+
+  const localDate = new Date(
+    parsedDate.getTime() -
+      offset * 60 * 1000
+  );
+
+  return localDate
+    .toISOString()
+    .slice(0, 16);
+};
+
+const getErrorMessage = (error) => {
+  return (
+    error?.response?.data?.message ||
+    error?.response?.data?.error ||
+    error?.message ||
+    "Something went wrong. Please try again."
+  );
+};
+
+const getElectionsFromResponse = (response) => {
+  const data = response?.data || response;
+
+  if (Array.isArray(data)) {
+    return data;
+  }
+
+  if (Array.isArray(data?.elections)) {
+    return data.elections;
+  }
+
+  if (Array.isArray(data?.data)) {
+    return data.data;
+  }
+
+  return [];
+};
+
 const ManageElections = () => {
-  const [elections, setElections] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [elections, setElections] =
+    useState([]);
 
-  const [editId, setEditId] = useState(null);
+  const [loading, setLoading] =
+    useState(true);
 
-  const [form, setForm] = useState({
-    title: "",
-    description: "",
-    startDate: "",
-    endDate: "",
-    candidates: [],
-  });
+  const [submitting, setSubmitting] =
+    useState(false);
 
-  // ================= FETCH =================
+  const [actionId, setActionId] =
+    useState(null);
+
+  const [editId, setEditId] =
+    useState(null);
+
+  const [form, setForm] =
+    useState(INITIAL_FORM);
+
+  const [error, setError] =
+    useState("");
+
+  const [success, setSuccess] =
+    useState("");
+
+  const [showForm, setShowForm] =
+    useState(false);
+
+  // =========================================================
+  // FETCH ELECTIONS
+  // =========================================================
+
   const loadData = async () => {
     try {
-      const res = await getAllElections();
-      const data = res?.data || res;
+      setLoading(true);
+      setError("");
 
-      setElections(data?.elections || []);
-    } catch (error) {
-      console.log(error);
+      const response =
+        await getAllElections();
+
+      setElections(
+        getElectionsFromResponse(response)
+      );
+    } catch (err) {
+      console.error(
+        "Failed to load elections:",
+        err
+      );
+
       setElections([]);
+      setError(
+        getErrorMessage(err)
+      );
     } finally {
       setLoading(false);
     }
@@ -40,269 +202,942 @@ const ManageElections = () => {
     loadData();
   }, []);
 
-  // ================= CANDIDATES =================
-  const addCandidate = () => {
-    setForm({
-      ...form,
-      candidates: [
-        ...form.candidates,
-        { name: "", image: "", party: "" },
-      ],
-    });
+  // =========================================================
+  // FORM CHANGE
+  // =========================================================
+
+  const handleChange = (event) => {
+    const {
+      name,
+      value,
+    } = event.target;
+
+    setForm((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
   };
 
-  const updateCandidate = (index, field, value) => {
-    const updated = [...form.candidates];
-    updated[index][field] = value;
-    setForm({ ...form, candidates: updated });
-  };
+  // =========================================================
+  // RESET
+  // =========================================================
 
-  const removeCandidate = (index) => {
-    const updated = form.candidates.filter((_, i) => i !== index);
-    setForm({ ...form, candidates: updated });
-  };
-
-  // ================= RESET FORM =================
   const resetForm = () => {
-    setForm({
-      title: "",
-      description: "",
-      startDate: "",
-      endDate: "",
-      candidates: [],
-    });
+    setForm(INITIAL_FORM);
     setEditId(null);
+    setShowForm(false);
   };
 
-  // ================= CREATE =================
-  const handleSubmit = async () => {
+  // =========================================================
+  // CREATE
+  // =========================================================
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+
+    if (!form.title.trim()) {
+      setError(
+        "Election title is required."
+      );
+      return;
+    }
+
+    if (!form.startDate) {
+      setError(
+        "Election start date is required."
+      );
+      return;
+    }
+
+    if (
+      form.endDate &&
+      new Date(form.endDate) <=
+        new Date(form.startDate)
+    ) {
+      setError(
+        "End date must be after the start date."
+      );
+      return;
+    }
+
     try {
-      await createElection(form);
+      setSubmitting(true);
+      setError("");
+      setSuccess("");
+
+      await createElection({
+        title: form.title.trim(),
+        description:
+          form.description.trim(),
+        startDate: form.startDate,
+        endDate: form.endDate || undefined,
+      });
+
+      setSuccess(
+        "Election created successfully."
+      );
+
       resetForm();
-      loadData();
-    } catch (error) {
-      console.log(error);
+      await loadData();
+    } catch (err) {
+      console.error(
+        "Create election error:",
+        err
+      );
+
+      setError(
+        getErrorMessage(err)
+      );
+    } finally {
+      setSubmitting(false);
     }
   };
 
-  // ================= UPDATE =================
-  const handleUpdate = async () => {
-    try {
-      await updateElection(editId, form);
-      resetForm();
-      loadData();
-    } catch (error) {
-      console.log(error);
-    }
-  };
+  // =========================================================
+  // EDIT
+  // =========================================================
 
-  // ================= DELETE =================
-  const handleDelete = async (id) => {
-    try {
-      await deleteElection(id);
-      loadData();
-    } catch (error) {
-      console.log(error);
-    }
-  };
-
-  // ================= EDIT =================
-  const handleEdit = (e) => {
-    setEditId(e._id);
+  const handleEdit = (election) => {
+    setEditId(election._id);
 
     setForm({
-      title: e.title || "",
-      description: e.description || "",
-      startDate: e.startDate?.split("T")[0] || "",
-      endDate: e.endDate?.split("T")[0] || "",
-      candidates: e.candidates || [],
+      title: election.title || "",
+      description:
+        election.description || "",
+      startDate:
+        formatDateTimeLocal(
+          election.startDate
+        ),
+      endDate:
+        formatDateTimeLocal(
+          election.endDate
+        ),
+    });
+
+    setError("");
+    setSuccess("");
+    setShowForm(true);
+
+    window.scrollTo({
+      top: 0,
+      behavior: "smooth",
     });
   };
+
+  // =========================================================
+  // UPDATE
+  // =========================================================
+
+  const handleUpdate = async (event) => {
+    event.preventDefault();
+
+    if (!editId) return;
+
+    if (!form.title.trim()) {
+      setError(
+        "Election title is required."
+      );
+      return;
+    }
+
+    if (!form.startDate) {
+      setError(
+        "Election start date is required."
+      );
+      return;
+    }
+
+    if (
+      form.endDate &&
+      new Date(form.endDate) <=
+        new Date(form.startDate)
+    ) {
+      setError(
+        "End date must be after the start date."
+      );
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+      setError("");
+      setSuccess("");
+
+      await updateElection(editId, {
+        title: form.title.trim(),
+        description:
+          form.description.trim(),
+        startDate: form.startDate,
+        endDate: form.endDate || undefined,
+      });
+
+      setSuccess(
+        "Election updated successfully."
+      );
+
+      resetForm();
+      await loadData();
+    } catch (err) {
+      console.error(
+        "Update election error:",
+        err
+      );
+
+      setError(
+        getErrorMessage(err)
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // =========================================================
+  // DELETE
+  // =========================================================
+
+  const handleDelete = async (id) => {
+    const confirmed = window.confirm(
+      "Are you sure you want to delete this election?"
+    );
+
+    if (!confirmed) return;
+
+    try {
+      setActionId(id);
+      setError("");
+      setSuccess("");
+
+      await deleteElection(id);
+
+      setSuccess(
+        "Election deleted successfully."
+      );
+
+      await loadData();
+    } catch (err) {
+      console.error(
+        "Delete election error:",
+        err
+      );
+
+      setError(
+        getErrorMessage(err)
+      );
+    } finally {
+      setActionId(null);
+    }
+  };
+
+  // =========================================================
+  // PUBLISH
+  // =========================================================
+
+  const handlePublish = async (id) => {
+    const confirmed = window.confirm(
+      "Publish this election?"
+    );
+
+    if (!confirmed) return;
+
+    try {
+      setActionId(id);
+      setError("");
+      setSuccess("");
+
+      await publishElection(id);
+
+      setSuccess(
+        "Election published successfully."
+      );
+
+      await loadData();
+    } catch (err) {
+      console.error(
+        "Publish election error:",
+        err
+      );
+
+      setError(
+        getErrorMessage(err)
+      );
+    } finally {
+      setActionId(null);
+    }
+  };
+
+  // =========================================================
+  // CANCEL
+  // =========================================================
+
+  const handleCancel = async (id) => {
+    const confirmed = window.confirm(
+      "Are you sure you want to cancel this election?"
+    );
+
+    if (!confirmed) return;
+
+    try {
+      setActionId(id);
+      setError("");
+      setSuccess("");
+
+      await cancelElection(id);
+
+      setSuccess(
+        "Election cancelled successfully."
+      );
+
+      await loadData();
+    } catch (err) {
+      console.error(
+        "Cancel election error:",
+        err
+      );
+
+      setError(
+        getErrorMessage(err)
+      );
+    } finally {
+      setActionId(null);
+    }
+  };
+
+  // =========================================================
+  // STATUS
+  // =========================================================
+
+  const getStatus = (election) => {
+    const status =
+      election?.status?.toUpperCase();
+
+    return (
+      STATUS_STYLES[status] ||
+      STATUS_STYLES.DRAFT
+    );
+  };
+
+  // =========================================================
+  // RENDER
+  // =========================================================
 
   return (
-    <div className="p-6 min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white">
+    <div className="min-h-screen bg-slate-950 px-4 py-6 text-white sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-7xl">
 
-      {/* ================= HEADER (same vibe as UserDashboard) ================= */}
-      <div className="mb-10">
-        <h1 className="text-4xl font-bold">
-          Admin Panel
-        </h1>
+        {/* =================================================
+            HEADER
+        ================================================== */}
 
-        <p className="text-gray-400 mt-2">
-          Manage elections, candidates & voting system
-        </p>
-      </div>
-
-      {/* ================= FORM CARD ================= */}
-      <div className="bg-gray-800/60 backdrop-blur-md border border-gray-700 p-6 rounded-2xl shadow-lg mb-10">
-
-        <h2 className="text-2xl font-semibold mb-6">
-          {editId ? "Update Election" : "Create Election"}
-        </h2>
-
-        <div className="grid md:grid-cols-2 gap-4">
-
-          <input
-            className="bg-gray-900 border border-gray-700 p-3 rounded-xl outline-none focus:border-blue-500"
-            placeholder="Title"
-            value={form.title}
-            onChange={(e) =>
-              setForm({ ...form, title: e.target.value })
-            }
-          />
-
-          <input
-            className="bg-gray-900 border border-gray-700 p-3 rounded-xl outline-none focus:border-blue-500"
-            placeholder="Description"
-            value={form.description}
-            onChange={(e) =>
-              setForm({ ...form, description: e.target.value })
-            }
-          />
-
-          <input
-            type="date"
-            className="bg-gray-900 border border-gray-700 p-3 rounded-xl"
-            value={form.startDate}
-            onChange={(e) =>
-              setForm({ ...form, startDate: e.target.value })
-            }
-          />
-
-          <input
-            type="date"
-            className="bg-gray-900 border border-gray-700 p-3 rounded-xl"
-            value={form.endDate}
-            onChange={(e) =>
-              setForm({ ...form, endDate: e.target.value })
-            }
-          />
-        </div>
-
-        {/* ================= CANDIDATES ================= */}
-        <h3 className="mt-6 text-lg font-semibold">
-          Candidates
-        </h3>
-
-        <div className="space-y-3 mt-3">
-          {form.candidates.map((c, i) => (
-            <div
-              key={i}
-              className="grid md:grid-cols-4 gap-2"
-            >
-              <input
-                className="bg-gray-900 border border-gray-700 p-2 rounded-lg"
-                placeholder="Name"
-                value={c.name}
-                onChange={(e) =>
-                  updateCandidate(i, "name", e.target.value)
-                }
-              />
-
-              <input
-                className="bg-gray-900 border border-gray-700 p-2 rounded-lg"
-                placeholder="Image"
-                value={c.image}
-                onChange={(e) =>
-                  updateCandidate(i, "image", e.target.value)
-                }
-              />
-
-              <input
-                className="bg-gray-900 border border-gray-700 p-2 rounded-lg"
-                placeholder="Party"
-                value={c.party}
-                onChange={(e) =>
-                  updateCandidate(i, "party", e.target.value)
-                }
-              />
-
-              <button
-                onClick={() => removeCandidate(i)}
-                className="bg-red-600 hover:bg-red-700 transition px-3 py-2 rounded-lg"
-              >
-                Remove
-              </button>
+        <motion.div
+          initial={{
+            opacity: 0,
+            y: -20,
+          }}
+          animate={{
+            opacity: 1,
+            y: 0,
+          }}
+          className="mb-8 flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between"
+        >
+          <div>
+            <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1.5 text-xs font-semibold text-emerald-300">
+              <CheckCircle2 size={14} />
+              Election Management
             </div>
-          ))}
-        </div>
 
-        <div className="flex gap-3 mt-5">
-          <button
-            onClick={addCandidate}
-            className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-xl"
-          >
-            + Add Candidate
-          </button>
+            <h1 className="text-3xl font-black tracking-tight sm:text-4xl">
+              Manage Elections
+            </h1>
 
-          {editId ? (
+            <p className="mt-2 max-w-2xl text-sm text-slate-500 sm:text-base">
+              Create, update, publish and
+              manage elections from one place.
+            </p>
+          </div>
+
+          <div className="flex gap-3">
             <button
-              onClick={handleUpdate}
-              className="bg-green-600 hover:bg-green-700 px-6 py-2 rounded-xl"
+              type="button"
+              onClick={loadData}
+              disabled={loading}
+              className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-semibold text-slate-300 transition hover:border-emerald-400/20 hover:bg-white/[0.07] disabled:opacity-50"
             >
-              Update Election
+              <RefreshCw
+                size={17}
+                className={
+                  loading
+                    ? "animate-spin"
+                    : ""
+                }
+              />
+              Refresh
             </button>
-          ) : (
+
             <button
-              onClick={handleSubmit}
-              className="bg-green-600 hover:bg-green-700 px-6 py-2 rounded-xl"
+              type="button"
+              onClick={() => {
+                setShowForm(true);
+                setEditId(null);
+                setForm(INITIAL_FORM);
+                setError("");
+              }}
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 px-5 py-3 text-sm font-bold text-white shadow-lg shadow-emerald-500/20 transition hover:-translate-y-0.5 hover:shadow-emerald-500/30"
             >
+              <Plus size={18} />
               Create Election
             </button>
-          )}
-        </div>
-      </div>
+          </div>
+        </motion.div>
 
-      {/* ================= LIST ================= */}
-      <h2 className="text-2xl font-semibold mb-4">
-        All Elections
-      </h2>
+        {/* =================================================
+            ALERTS
+        ================================================== */}
 
-      {loading ? (
-        <p className="text-gray-400">Loading...</p>
-      ) : elections.length === 0 ? (
-        <p className="text-gray-400">No elections found</p>
-      ) : (
-        <div className="grid md:grid-cols-2 gap-5">
-
-          {elections.map((e) => (
-            <div
-              key={e._id}
-              className="bg-gray-800/60 border border-gray-700 p-5 rounded-2xl shadow hover:shadow-xl transition"
+        <AnimatePresence>
+          {error && (
+            <motion.div
+              initial={{
+                opacity: 0,
+                y: -10,
+              }}
+              animate={{
+                opacity: 1,
+                y: 0,
+              }}
+              exit={{
+                opacity: 0,
+                y: -10,
+              }}
+              className="mb-5 flex items-start gap-3 rounded-2xl border border-red-400/20 bg-red-500/10 p-4 text-sm text-red-300"
             >
+              <AlertCircle
+                size={19}
+                className="mt-0.5 shrink-0"
+              />
 
-              <h3 className="text-xl font-bold">
-                {e.title}
-              </h3>
+              <span className="flex-1">
+                {error}
+              </span>
 
-              <p className="text-gray-400 mt-1">
-                {e.description}
-              </p>
+              <button
+                type="button"
+                onClick={() =>
+                  setError("")
+                }
+              >
+                <X size={17} />
+              </button>
+            </motion.div>
+          )}
 
-              <div className="flex justify-between mt-5">
+          {success && (
+            <motion.div
+              initial={{
+                opacity: 0,
+                y: -10,
+              }}
+              animate={{
+                opacity: 1,
+                y: 0,
+              }}
+              exit={{
+                opacity: 0,
+                y: -10,
+              }}
+              className="mb-5 flex items-center gap-3 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 p-4 text-sm text-emerald-300"
+            >
+              <CheckCircle2
+                size={19}
+              />
 
-                <button
-                  onClick={() => handleEdit(e)}
-                  className="bg-yellow-500 hover:bg-yellow-600 px-4 py-1 rounded-lg text-black font-medium"
+              <span>
+                {success}
+              </span>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* =================================================
+            CREATE / UPDATE FORM
+        ================================================== */}
+
+        <AnimatePresence>
+          {showForm && (
+            <motion.div
+              initial={{
+                opacity: 0,
+                height: 0,
+                y: -10,
+              }}
+              animate={{
+                opacity: 1,
+                height: "auto",
+                y: 0,
+              }}
+              exit={{
+                opacity: 0,
+                height: 0,
+                y: -10,
+              }}
+              className="mb-8 overflow-hidden"
+            >
+              <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-5 shadow-2xl backdrop-blur-xl sm:p-7">
+
+                <div className="mb-6 flex items-center justify-between">
+                  <div>
+                    <h2 className="text-xl font-bold sm:text-2xl">
+                      {editId
+                        ? "Update Election"
+                        : "Create New Election"}
+                    </h2>
+
+                    <p className="mt-1 text-sm text-slate-500">
+                      Enter the election details
+                      below.
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={resetForm}
+                    className="rounded-xl border border-white/10 p-2 text-slate-400 transition hover:bg-white/5 hover:text-white"
+                  >
+                    <X size={19} />
+                  </button>
+                </div>
+
+                <form
+                  onSubmit={
+                    editId
+                      ? handleUpdate
+                      : handleSubmit
+                  }
+                  className="space-y-5"
                 >
-                  Edit
-                </button>
+                  {/* Title */}
+                  <div>
+                    <label className="mb-2 block text-sm font-semibold text-slate-300">
+                      Election Title
+                    </label>
 
-                <button
-                  onClick={() => handleDelete(e._id)}
-                  className="bg-red-600 hover:bg-red-700 px-4 py-1 rounded-lg"
-                >
-                  Delete
-                </button>
+                    <input
+                      type="text"
+                      name="title"
+                      value={form.title}
+                      onChange={
+                        handleChange
+                      }
+                      placeholder="Enter election title"
+                      className="w-full rounded-xl border border-white/10 bg-slate-900/70 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-emerald-400/40 focus:ring-2 focus:ring-emerald-500/10"
+                    />
+                  </div>
 
+                  {/* Description */}
+                  <div>
+                    <label className="mb-2 block text-sm font-semibold text-slate-300">
+                      Description
+                    </label>
+
+                    <textarea
+                      name="description"
+                      rows={4}
+                      value={
+                        form.description
+                      }
+                      onChange={
+                        handleChange
+                      }
+                      placeholder="Enter election description"
+                      className="w-full resize-none rounded-xl border border-white/10 bg-slate-900/70 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-emerald-400/40 focus:ring-2 focus:ring-emerald-500/10"
+                    />
+                  </div>
+
+                  {/* Dates */}
+                  <div className="grid gap-5 md:grid-cols-2">
+
+                    <div>
+                      <label className="mb-2 block text-sm font-semibold text-slate-300">
+                        Start Date
+                      </label>
+
+                      <div className="relative">
+                        <CalendarDays
+                          size={17}
+                          className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-500"
+                        />
+
+                        <input
+                          type="datetime-local"
+                          name="startDate"
+                          value={
+                            form.startDate
+                          }
+                          onChange={
+                            handleChange
+                          }
+                          className="w-full rounded-xl border border-white/10 bg-slate-900/70 py-3 pl-11 pr-4 text-sm text-white outline-none transition focus:border-emerald-400/40 focus:ring-2 focus:ring-emerald-500/10"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="mb-2 block text-sm font-semibold text-slate-300">
+                        End Date
+                      </label>
+
+                      <div className="relative">
+                        <Clock3
+                          size={17}
+                          className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-500"
+                        />
+
+                        <input
+                          type="datetime-local"
+                          name="endDate"
+                          value={
+                            form.endDate
+                          }
+                          onChange={
+                            handleChange
+                          }
+                          className="w-full rounded-xl border border-white/10 bg-slate-900/70 py-3 pl-11 pr-4 text-sm text-white outline-none transition focus:border-emerald-400/40 focus:ring-2 focus:ring-emerald-500/10"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Buttons */}
+                  <div className="flex flex-col gap-3 pt-2 sm:flex-row sm:justify-end">
+
+                    <button
+                      type="button"
+                      onClick={resetForm}
+                      className="rounded-xl border border-white/10 px-5 py-3 text-sm font-semibold text-slate-300 transition hover:bg-white/5 hover:text-white"
+                    >
+                      Cancel
+                    </button>
+
+                    <button
+                      type="submit"
+                      disabled={submitting}
+                      className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 px-6 py-3 text-sm font-bold text-white shadow-lg shadow-emerald-500/20 transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {submitting ? (
+                        <Loader2
+                          size={18}
+                          className="animate-spin"
+                        />
+                      ) : editId ? (
+                        <Edit3
+                          size={18}
+                        />
+                      ) : (
+                        <Plus size={18} />
+                      )}
+
+                      {submitting
+                        ? "Saving..."
+                        : editId
+                        ? "Update Election"
+                        : "Create Election"}
+                    </button>
+                  </div>
+                </form>
               </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
-            </div>
-          ))}
+        {/* =================================================
+            ELECTION LIST
+        ================================================== */}
 
+        <div className="mb-5 flex items-center justify-between">
+          <div>
+            <h2 className="text-xl font-bold text-white sm:text-2xl">
+              All Elections
+            </h2>
+
+            <p className="mt-1 text-sm text-slate-500">
+              {elections.length} election
+              {elections.length !== 1
+                ? "s"
+                : ""} found
+            </p>
+          </div>
         </div>
-      )}
 
+        {/* Loading */}
+        {loading ? (
+          <div className="flex min-h-[350px] items-center justify-center rounded-3xl border border-white/10 bg-white/[0.03]">
+            <div className="text-center">
+              <Loader2
+                size={32}
+                className="mx-auto animate-spin text-emerald-400"
+              />
+
+              <p className="mt-3 text-sm text-slate-500">
+                Loading elections...
+              </p>
+            </div>
+          </div>
+        ) : elections.length === 0 ? (
+          /* Empty */
+          <motion.div
+            initial={{
+              opacity: 0,
+              y: 15,
+            }}
+            animate={{
+              opacity: 1,
+              y: 0,
+            }}
+            className="flex min-h-[350px] flex-col items-center justify-center rounded-3xl border border-dashed border-white/10 bg-white/[0.02] p-8 text-center"
+          >
+            <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-emerald-400/20 bg-emerald-500/10 text-emerald-400">
+              <FileText size={28} />
+            </div>
+
+            <h3 className="mt-5 text-lg font-bold text-white">
+              No elections found
+            </h3>
+
+            <p className="mt-2 max-w-md text-sm text-slate-500">
+              Create your first election to
+              start managing the voting
+              process.
+            </p>
+
+            <button
+              type="button"
+              onClick={() => {
+                setShowForm(true);
+                setForm(INITIAL_FORM);
+              }}
+              className="mt-5 inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 px-5 py-3 text-sm font-bold text-white"
+            >
+              <Plus size={17} />
+              Create Election
+            </button>
+          </motion.div>
+        ) : (
+          <div className="grid gap-5 lg:grid-cols-2">
+            {elections.map(
+              (election, index) => {
+                const status =
+                  getStatus(election);
+
+                const isActionLoading =
+                  actionId ===
+                  election._id;
+
+                return (
+                  <motion.div
+                    key={election._id}
+                    initial={{
+                      opacity: 0,
+                      y: 20,
+                    }}
+                    animate={{
+                      opacity: 1,
+                      y: 0,
+                    }}
+                    transition={{
+                      delay:
+                        index * 0.05,
+                    }}
+                    className="group overflow-hidden rounded-3xl border border-white/10 bg-white/[0.04] shadow-xl backdrop-blur-xl transition hover:-translate-y-1 hover:border-emerald-400/20"
+                  >
+                    {/* Card top */}
+                    <div className="p-5 sm:p-6">
+
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="min-w-0">
+                          <h3 className="break-words text-lg font-bold text-white sm:text-xl">
+                            {election.title ||
+                              "Untitled Election"}
+                          </h3>
+
+                          <p className="mt-2 line-clamp-3 text-sm leading-6 text-slate-500">
+                            {election.description ||
+                              "No description provided."}
+                          </p>
+                        </div>
+
+                        <span
+                          className={`shrink-0 rounded-full border px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide ${status.className}`}
+                        >
+                          {status.label}
+                        </span>
+                      </div>
+
+                      {/* Dates */}
+                      <div className="mt-6 grid gap-3 sm:grid-cols-2">
+
+                        <div className="rounded-2xl border border-white/5 bg-slate-950/40 p-4">
+                          <div className="flex items-center gap-2 text-xs font-semibold text-slate-500">
+                            <CalendarDays
+                              size={14}
+                            />
+                            Start
+                          </div>
+
+                          <p className="mt-2 text-sm font-semibold text-slate-200">
+                            {formatDate(
+                              election.startDate
+                            )}
+                          </p>
+                        </div>
+
+                        <div className="rounded-2xl border border-white/5 bg-slate-950/40 p-4">
+                          <div className="flex items-center gap-2 text-xs font-semibold text-slate-500">
+                            <Clock3
+                              size={14}
+                            />
+                            End
+                          </div>
+
+                          <p className="mt-2 text-sm font-semibold text-slate-200">
+                            {formatDate(
+                              election.endDate
+                            )}
+                          </p>
+                        </div>
+
+                      </div>
+
+                      {/* Published */}
+                      {typeof election.isPublished ===
+                        "boolean" && (
+                        <div className="mt-4 flex items-center gap-2 text-xs text-slate-500">
+                          <span
+                            className={`h-2 w-2 rounded-full ${
+                              election.isPublished
+                                ? "bg-emerald-400"
+                                : "bg-slate-600"
+                            }`}
+                          />
+
+                          {election.isPublished
+                            ? "Published"
+                            : "Not published"}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Actions */}
+                    <div className="border-t border-white/10 bg-slate-950/30 p-4">
+                      <div className="flex flex-wrap gap-2">
+
+                        {/* Edit */}
+                        <button
+                          type="button"
+                          onClick={() =>
+                            handleEdit(
+                              election
+                            )
+                          }
+                          disabled={
+                            isActionLoading
+                          }
+                          className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-xs font-bold text-slate-300 transition hover:border-emerald-400/20 hover:bg-emerald-500/10 hover:text-emerald-300 disabled:opacity-50"
+                        >
+                          <Edit3
+                            size={15}
+                          />
+                          Edit
+                        </button>
+
+                        {/* Publish */}
+                        {election.status ===
+                          "DRAFT" && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handlePublish(
+                                election._id
+                              )
+                            }
+                            disabled={
+                              isActionLoading
+                            }
+                            className="inline-flex items-center gap-2 rounded-xl border border-emerald-400/20 bg-emerald-500/10 px-4 py-2.5 text-xs font-bold text-emerald-300 transition hover:bg-emerald-500/20 disabled:opacity-50"
+                          >
+                            {isActionLoading ? (
+                              <Loader2
+                                size={15}
+                                className="animate-spin"
+                              />
+                            ) : (
+                              <CheckCircle2
+                                size={15}
+                              />
+                            )}
+                            Publish
+                          </button>
+                        )}
+
+                        {/* Cancel */}
+                        {[
+                          "DRAFT",
+                          "UPCOMING",
+                          "LIVE",
+                        ].includes(
+                          election.status
+                        ) && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleCancel(
+                                election._id
+                              )
+                            }
+                            disabled={
+                              isActionLoading
+                            }
+                            className="inline-flex items-center gap-2 rounded-xl border border-amber-400/20 bg-amber-500/10 px-4 py-2.5 text-xs font-bold text-amber-300 transition hover:bg-amber-500/20 disabled:opacity-50"
+                          >
+                            <XCircle
+                              size={15}
+                            />
+                            Cancel
+                          </button>
+                        )}
+
+                        {/* Delete */}
+                        <button
+                          type="button"
+                          onClick={() =>
+                            handleDelete(
+                              election._id
+                            )
+                          }
+                          disabled={
+                            isActionLoading
+                          }
+                          className="ml-auto inline-flex items-center gap-2 rounded-xl border border-red-400/20 bg-red-500/10 px-4 py-2.5 text-xs font-bold text-red-300 transition hover:bg-red-500/20 disabled:opacity-50"
+                        >
+                          {isActionLoading ? (
+                            <Loader2
+                              size={15}
+                              className="animate-spin"
+                            />
+                          ) : (
+                            <Trash2
+                              size={15}
+                            />
+                          )}
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  </motion.div>
+                );
+              }
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 };

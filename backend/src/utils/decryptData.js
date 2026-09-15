@@ -1,20 +1,53 @@
 import CryptoJS from "crypto-js";
 
-const decryptData = (
-  encryptedData
-) => {
-  const bytes =
-    CryptoJS.AES.decrypt(
+// ======================================================
+// GET ENCRYPTION KEY
+// ======================================================
+
+const getEncryptionKey = () => {
+  const key = process.env.ENCRYPTION_KEY;
+
+  if (!key) {
+    throw new Error(
+      "ENCRYPTION_KEY is not configured."
+    );
+  }
+
+  return key;
+};
+
+// ======================================================
+// DECRYPT DATA
+// ======================================================
+
+const decryptData = (encryptedData) => {
+  if (!encryptedData) {
+    throw new Error(
+      "Encrypted data is required."
+    );
+  }
+
+  try {
+    const bytes = CryptoJS.AES.decrypt(
       encryptedData,
-      process.env.JWT_SECRET
+      getEncryptionKey()
     );
 
-  const decrypted =
-    bytes.toString(
-      CryptoJS.enc.Utf8
-    );
+    const decryptedText =
+      bytes.toString(CryptoJS.enc.Utf8);
 
-  return JSON.parse(decrypted);
+    if (!decryptedText) {
+      throw new Error(
+        "Unable to decrypt data."
+      );
+    }
+
+    return JSON.parse(decryptedText);
+  } catch (error) {
+    throw new Error(
+      "Invalid or corrupted encrypted data."
+    );
+  }
 };
 
 export default decryptData;

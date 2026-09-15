@@ -1,12 +1,13 @@
 import crypto from "crypto";
 
-const generateVotingLink = () => {
-  const token =
-    crypto.randomBytes(32).toString(
-      "hex"
-    );
+// ======================================================
+// GENERATE SECURE VOTING LINK TOKEN
+// ======================================================
 
-  return token;
+const generateVotingLink = () => {
+  return crypto
+    .randomBytes(32)
+    .toString("hex");
 };
 
 export default generateVotingLink;

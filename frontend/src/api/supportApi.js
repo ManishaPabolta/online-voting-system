@@ -1,32 +1,42 @@
 import API from "./axios";
 
-export const sendMessage =
-  async (messageData) => {
-    const response =
-      await API.post(
-        "/support/send",
-        messageData
-      );
+// ==========================================
+// SEND SUPPORT MESSAGE
+// ==========================================
 
-    return response.data;
-  };
+export const sendMessage = async (
+  messageData
+) => {
+  const response = await API.post(
+    "/support/send",
+    messageData
+  );
 
-export const getMessages =
-  async () => {
-    const response =
-      await API.get(
-        "/support/messages"
-      );
+  return response.data;
+};
 
-    return response.data;
-  };
+// ==========================================
+// GET SUPPORT MESSAGES
+// ==========================================
 
-export const closeChat =
-  async (chatId) => {
-    const response =
-      await API.put(
-        `/support/close/${chatId}`
-      );
+export const getMessages = async () => {
+  const response = await API.get(
+    "/support/messages"
+  );
 
-    return response.data;
-  };
+  return response.data;
+};
+
+// ==========================================
+// CLOSE SUPPORT CHAT
+// ==========================================
+
+export const closeChat = async (
+  chatId
+) => {
+  const response = await API.put(
+    `/support/close/${chatId}`
+  );
+
+  return response.data;
+};

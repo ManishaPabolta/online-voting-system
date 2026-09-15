@@ -1,58 +1,43 @@
 import API from "./axios";
 
-/**
- * ================= CREATE PROFILE =================
- */
+// ==========================================
+// CREATE VOTER PROFILE
+// ==========================================
+
 export const createProfile = async (
   formData
 ) => {
-
-  const response =
-    await API.post(
-      "/profile/create",
-      formData,
-      {
-        headers: {
-          "Content-Type":
-            "multipart/form-data",
-        },
-      }
-    );
+  const response = await API.post(
+    "/profile",
+    formData
+  );
 
   return response.data;
 };
 
-/**
- * ================= GET PROFILE =================
- */
-export const getProfile =
-  async () => {
+// ==========================================
+// GET MY PROFILE
+// ==========================================
 
-    const response =
-      await API.get(
-        "/profile/me"
-      );
+export const getProfile = async () => {
+  const response = await API.get(
+    "/profile/me"
+  );
 
-    return response.data;
-  };
+  return response.data;
+};
 
-/**
- * ================= UPDATE PROFILE =================
- */
-export const updateProfile =
-  async (formData) => {
+// ==========================================
+// UPDATE VOTER PROFILE
+// ==========================================
 
-    const response =
-      await API.put(
-        "/profile/update",
-        formData,
-        {
-          headers: {
-            "Content-Type":
-              "multipart/form-data",
-          },
-        }
-      );
+export const updateProfile = async (
+  formData
+) => {
+  const response = await API.put(
+    "/profile",
+    formData
+  );
 
-    return response.data;
-  };
+  return response.data;
+};

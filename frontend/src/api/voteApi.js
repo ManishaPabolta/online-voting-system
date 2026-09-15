@@ -1,12 +1,10 @@
 import API from "./axios";
 
-/**
- * ================= CAST VOTE =================
- */
+// ==========================================
+// CAST VOTE
+// ==========================================
+
 export const castVote = async (voteData) => {
-
-  console.log("VOTE DATA =>", voteData);
-
   const response = await API.post(
     "/vote/cast",
     voteData
@@ -15,13 +13,41 @@ export const castVote = async (voteData) => {
   return response.data;
 };
 
-/**
- * ================= GET VOTE STATUS =================
- */
-export const getVoteStatus = async () => {
+// ==========================================
+// GET MY VOTE STATUS
+// ==========================================
 
+export const getVoteStatus = async () => {
   const response = await API.get(
     "/vote/status"
+  );
+
+  return response.data;
+};
+
+// ==========================================
+// CHECK SPECIFIC ELECTION STATUS
+// ==========================================
+
+export const checkVoteStatus = async (
+  electionId
+) => {
+  const response = await API.get(
+    `/vote/status/${electionId}`
+  );
+
+  return response.data;
+};
+
+// ==========================================
+// GET ELECTION RESULTS
+// ==========================================
+
+export const getElectionResults = async (
+  electionId
+) => {
+  const response = await API.get(
+    `/vote/results/${electionId}`
   );
 
   return response.data;

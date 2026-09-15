@@ -3,6 +3,8 @@ import express from "express";
 import {
   castVote,
   getVoteStatus,
+  checkVoteStatus,
+  getElectionResults,
 } from "../controllers/votingController.js";
 
 import authMiddleware from "../middleware/authMiddleware.js";
@@ -13,18 +15,60 @@ import checkProfileComplete from "../middleware/profileCheckMiddleware.js";
 
 const router = express.Router();
 
-// 🔥 CAST VOTE (FULL SECURITY FLOW)
+// ==========================================================
+// CAST VOTE
+// ==========================================================
+// Full security flow:
+//
+// Authentication
+//      ↓
+// Voter profile verification
+//      ↓
+// Voting password verification
+//      ↓
+// Location verification
+//      ↓
+// Duplicate-vote security
+//      ↓
+// Cast vote
+
 router.post(
   "/cast",
   authMiddleware,
-  checkProfileComplete,     // ✅ PROFILE CHECK ADDED
-  mfaMiddleware,            // OTP
+  checkProfileComplete,
+  mfaMiddleware,
   locationMiddleware,
   voteSecurityMiddleware,
   castVote
 );
 
-// STATUS
-router.get("/status", authMiddleware, getVoteStatus);
+// ==========================================================
+// VOTING HISTORY
+// ==========================================================
+
+router.get(
+  "/status",
+  authMiddleware,
+  getVoteStatus
+);
+
+// ==========================================================
+// CHECK SPECIFIC ELECTION STATUS
+// ==========================================================
+
+router.get(
+  "/status/:electionId",
+  authMiddleware,
+  checkVoteStatus
+);
+
+// ==========================================================
+// ELECTION RESULTS
+// ==========================================================
+
+router.get(
+  "/results/:id",
+  getElectionResults
+);
 
 export default router;
