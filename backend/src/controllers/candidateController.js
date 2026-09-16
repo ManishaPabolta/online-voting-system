@@ -4,14 +4,21 @@ import Candidate from "../models/Candidate.js";
 import Election from "../models/Election.js";
 import Vote from "../models/Vote.js";
 
-// ======================================================
-// HELPERS
-// ======================================================
+/* =========================================================
+   HELPERS
+========================================================= */
 
+/**
+ * Check whether MongoDB ObjectId is valid.
+ */
 const isValidObjectId = (id) => {
   return mongoose.Types.ObjectId.isValid(id);
 };
 
+/**
+ * Convert any value into a trimmed string.
+ * Undefined / null become empty string.
+ */
 const normalizeString = (value) => {
   if (value === undefined || value === null) {
     return "";
@@ -20,27 +27,41 @@ const normalizeString = (value) => {
   return String(value).trim();
 };
 
-const getElectionState = (election) => {
-  if (!election) return null;
+/* =========================================================
+   GET CURRENT ELECTION STATE
+========================================================= */
 
+const getElectionState = (election) => {
+  if (!election) {
+    return null;
+  }
+
+  /* Cancelled election always remains cancelled. */
   if (election.status === "CANCELLED") {
     return "CANCELLED";
   }
 
+  /* Unpublished election is treated as draft. */
   if (!election.isPublished) {
     return "DRAFT";
   }
 
   const now = new Date();
 
+  /* Before start date. */
   if (now < election.startDate) {
     return "UPCOMING";
   }
 
-  if (now >= election.startDate && now < election.endDate) {
+  /* During election. */
+  if (
+    now >= election.startDate &&
+    now < election.endDate
+  ) {
     return "LIVE";
   }
 
+  /* After end date. */
   if (now >= election.endDate) {
     return "COMPLETED";
   }
@@ -48,28 +69,49 @@ const getElectionState = (election) => {
   return election.status;
 };
 
+/* =========================================================
+   SAFE CANDIDATE RESPONSE
+========================================================= */
+
 const getSafeCandidateData = (candidate) => {
   return {
     _id: candidate._id,
+
     election: candidate.election,
+
     name: candidate.name,
-    party: candidate.party,
-    symbol: candidate.symbol,
-    photo: candidate.photo,
-    manifesto: candidate.manifesto,
-    biography: candidate.biography,
-    experience: candidate.experience,
-    position: candidate.position,
-    voteCount: candidate.voteCount,
+
+    party: candidate.party || "",
+
+    symbol: candidate.symbol || "",
+
+    photo: candidate.photo || "",
+
+    manifesto: candidate.manifesto || "",
+
+    biography: candidate.biography || "",
+
+    experience: candidate.experience || "",
+
+    position: candidate.position || "",
+
+    /*
+      voteCount is returned only as cached/compatibility data.
+      Actual election results come from Vote collection.
+    */
+    voteCount: candidate.voteCount || 0,
+
     isActive: candidate.isActive,
+
     createdAt: candidate.createdAt,
+
     updatedAt: candidate.updatedAt,
   };
 };
 
-// ======================================================
-// CREATE CANDIDATE
-// ======================================================
+/* =========================================================
+   CREATE CANDIDATE / VOTING OPTION
+========================================================= */
 
 export const createCandidate = async (req, res) => {
   try {
@@ -85,21 +127,21 @@ export const createCandidate = async (req, res) => {
       position,
     } = req.body;
 
-    // --------------------------------------------------
-    // Validate required fields
-    // --------------------------------------------------
+    /* =====================================================
+       REQUIRED FIELDS
+    ===================================================== */
 
-    if (!election || !name || !party) {
+    if (!election || !name) {
       return res.status(400).json({
         success: false,
         message:
-          "Election, candidate name and party are required.",
+          "Election and candidate name are required.",
       });
     }
 
-    // --------------------------------------------------
-    // Validate election ID
-    // --------------------------------------------------
+    /* =====================================================
+       VALIDATE ELECTION ID
+    ===================================================== */
 
     if (!isValidObjectId(election)) {
       return res.status(400).json({
@@ -108,7 +150,12 @@ export const createCandidate = async (req, res) => {
       });
     }
 
-    const electionData = await Election.findById(election);
+    /* =====================================================
+       FIND ELECTION
+    ===================================================== */
+
+    const electionData =
+      await Election.findById(election);
 
     if (!electionData) {
       return res.status(404).json({
@@ -117,11 +164,17 @@ export const createCandidate = async (req, res) => {
       });
     }
 
-    // --------------------------------------------------
-    // Check election state
-    // --------------------------------------------------
+    /* =====================================================
+       CHECK ELECTION STATE
+    ===================================================== */
 
-    const electionState = getElectionState(electionData);
+    const electionState =
+      getElectionState(electionData);
+
+    /*
+      New voting options cannot be added once voting
+      has started.
+    */
 
     if (electionState === "LIVE") {
       return res.status(400).json({
@@ -147,12 +200,37 @@ export const createCandidate = async (req, res) => {
       });
     }
 
-    // --------------------------------------------------
-    // Normalize fields
-    // --------------------------------------------------
+    /* =====================================================
+       NORMALIZE DATA
+    ===================================================== */
 
-    const candidateName = normalizeString(name);
-    const candidateParty = normalizeString(party);
+    const candidateName =
+      normalizeString(name);
+
+    const candidateParty =
+      normalizeString(party);
+
+    const candidateSymbol =
+      normalizeString(symbol);
+
+    const candidatePhoto =
+      normalizeString(photo);
+
+    const candidateManifesto =
+      normalizeString(manifesto);
+
+    const candidateBiography =
+      normalizeString(biography);
+
+    const candidateExperience =
+      normalizeString(experience);
+
+    const candidatePosition =
+      normalizeString(position);
+
+    /* =====================================================
+       VALIDATE NAME
+    ===================================================== */
 
     if (candidateName.length < 2) {
       return res.status(400).json({
@@ -170,12 +248,9 @@ export const createCandidate = async (req, res) => {
       });
     }
 
-    if (!candidateParty) {
-      return res.status(400).json({
-        success: false,
-        message: "Candidate party is required.",
-      });
-    }
+    /* =====================================================
+       VALIDATE OPTIONAL PARTY
+    ===================================================== */
 
     if (candidateParty.length > 100) {
       return res.status(400).json({
@@ -185,14 +260,75 @@ export const createCandidate = async (req, res) => {
       });
     }
 
-    // --------------------------------------------------
-    // Prevent duplicate candidate
-    // --------------------------------------------------
+    /* =====================================================
+       VALIDATE OPTIONAL SYMBOL
+    ===================================================== */
 
-    const existingCandidate = await Candidate.findOne({
-      election: electionData._id,
-      name: candidateName,
-    });
+    if (candidateSymbol.length > 100) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Candidate symbol cannot exceed 100 characters.",
+      });
+    }
+
+    /* =====================================================
+       VALIDATE OPTIONAL MANIFESTO
+    ===================================================== */
+
+    if (candidateManifesto.length > 5000) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Candidate manifesto cannot exceed 5000 characters.",
+      });
+    }
+
+    /* =====================================================
+       VALIDATE OPTIONAL BIOGRAPHY
+    ===================================================== */
+
+    if (candidateBiography.length > 5000) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Candidate biography cannot exceed 5000 characters.",
+      });
+    }
+
+    /* =====================================================
+       VALIDATE OPTIONAL EXPERIENCE
+    ===================================================== */
+
+    if (candidateExperience.length > 3000) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Candidate experience cannot exceed 3000 characters.",
+      });
+    }
+
+    /* =====================================================
+       VALIDATE OPTIONAL POSITION
+    ===================================================== */
+
+    if (candidatePosition.length > 150) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Candidate position cannot exceed 150 characters.",
+      });
+    }
+
+    /* =====================================================
+       DUPLICATE NAME CHECK
+    ===================================================== */
+
+    const existingCandidate =
+      await Candidate.findOne({
+        election: electionData._id,
+        name: candidateName,
+      });
 
     if (existingCandidate) {
       return res.status(409).json({
@@ -202,27 +338,38 @@ export const createCandidate = async (req, res) => {
       });
     }
 
-    // --------------------------------------------------
-    // Create candidate
-    // --------------------------------------------------
+    /* =====================================================
+       CREATE CANDIDATE
+    ===================================================== */
 
-    const candidate = await Candidate.create({
-      election: electionData._id,
-      name: candidateName,
-      party: candidateParty,
-      symbol: normalizeString(symbol),
-      photo: normalizeString(photo),
-      manifesto: normalizeString(manifesto),
-      biography: normalizeString(biography),
-      experience: normalizeString(experience),
-      position: normalizeString(position),
-      voteCount: 0,
-      isActive: true,
-    });
+    const candidate =
+      await Candidate.create({
+        election: electionData._id,
 
-    // --------------------------------------------------
-    // Add candidate reference to election
-    // --------------------------------------------------
+        name: candidateName,
+
+        party: candidateParty,
+
+        symbol: candidateSymbol,
+
+        photo: candidatePhoto,
+
+        manifesto: candidateManifesto,
+
+        biography: candidateBiography,
+
+        experience: candidateExperience,
+
+        position: candidatePosition,
+
+        voteCount: 0,
+
+        isActive: true,
+      });
+
+    /* =====================================================
+       ADD CANDIDATE REFERENCE TO ELECTION
+    ===================================================== */
 
     await Election.updateOne(
       {
@@ -235,15 +382,27 @@ export const createCandidate = async (req, res) => {
       }
     );
 
+    /* =====================================================
+       RESPONSE
+    ===================================================== */
+
     return res.status(201).json({
       success: true,
-      message: "Candidate created successfully.",
-      candidate: getSafeCandidateData(candidate),
+      message:
+        "Candidate created successfully.",
+      candidate:
+        getSafeCandidateData(candidate),
     });
   } catch (error) {
-    console.error("CREATE CANDIDATE ERROR:", error);
+    console.error(
+      "CREATE CANDIDATE ERROR:",
+      error
+    );
 
-    // Mongo duplicate key
+    /* =====================================================
+       MONGO DUPLICATE KEY
+    ===================================================== */
+
     if (error.code === 11000) {
       return res.status(409).json({
         success: false,
@@ -252,54 +411,80 @@ export const createCandidate = async (req, res) => {
       });
     }
 
-    // Mongoose validation
-    if (error.name === "ValidationError") {
-      const messages = Object.values(error.errors).map(
-        (err) => err.message
-      );
+    /* =====================================================
+       MONGOOSE VALIDATION
+    ===================================================== */
+
+    if (
+      error.name === "ValidationError"
+    ) {
+      const messages =
+        Object.values(error.errors).map(
+          (err) => err.message
+        );
 
       return res.status(400).json({
         success: false,
-        message: "Candidate validation failed.",
+        message:
+          "Candidate validation failed.",
         errors: messages,
       });
     }
 
     return res.status(500).json({
       success: false,
-      message: "Failed to create candidate.",
+      message:
+        "Failed to create candidate.",
     });
   }
 };
 
-// ======================================================
-// GET ALL CANDIDATES
-// ======================================================
+/* =========================================================
+   GET ALL CANDIDATES / VOTING OPTIONS
+========================================================= */
 
-export const getCandidates = async (req, res) => {
+export const getCandidates = async (
+  req,
+  res
+) => {
   try {
     const filter = {};
 
-    // --------------------------------------------------
-    // Election filter
-    // --------------------------------------------------
+    /* =====================================================
+       ELECTION FILTER
+       
+       Example:
+       GET /api/candidates?election=ID
+    ===================================================== */
 
     if (req.query.election) {
-      if (!isValidObjectId(req.query.election)) {
+      if (
+        !isValidObjectId(
+          req.query.election
+        )
+      ) {
         return res.status(400).json({
           success: false,
-          message: "Invalid election ID.",
+          message:
+            "Invalid election ID.",
         });
       }
 
-      filter.election = req.query.election;
+      filter.election =
+        req.query.election;
     }
 
-    // --------------------------------------------------
-    // Active filter
-    // --------------------------------------------------
+    /* =====================================================
+       ACTIVE FILTER
+       
+       Example:
+       ?active=true
+       ?active=false
+    ===================================================== */
 
-    if (req.query.active !== undefined) {
+    if (
+      req.query.active !== undefined
+    ) {
       if (
         req.query.active !== "true" &&
         req.query.active !== "false"
@@ -311,18 +496,28 @@ export const getCandidates = async (req, res) => {
         });
       }
 
-      filter.isActive = req.query.active === "true";
+      filter.isActive =
+        req.query.active === "true";
     }
 
-    const candidates = await Candidate.find(filter)
-      .populate(
-        "election",
-        "title description electionType status startDate endDate isPublished isResultsPublished"
-      )
-      .sort({
-        createdAt: -1,
-      })
-      .lean();
+    /* =====================================================
+       FETCH CANDIDATES
+    ===================================================== */
+
+    const candidates =
+      await Candidate.find(filter)
+        .populate(
+          "election",
+          "title description electionType status startDate endDate isPublished isResultsPublished"
+        )
+        .sort({
+          createdAt: 1,
+        })
+        .lean();
+
+    /* =====================================================
+       RESPONSE
+    ===================================================== */
 
     return res.status(200).json({
       success: true,
@@ -330,48 +525,65 @@ export const getCandidates = async (req, res) => {
       candidates,
     });
   } catch (error) {
-    console.error("GET CANDIDATES ERROR:", error);
+    console.error(
+      "GET CANDIDATES ERROR:",
+      error
+    );
 
     return res.status(500).json({
       success: false,
-      message: "Failed to fetch candidates.",
+      message:
+        "Failed to fetch candidates.",
     });
   }
 };
 
-// ======================================================
-// GET SINGLE CANDIDATE
-// ======================================================
+/* =========================================================
+   GET SINGLE CANDIDATE
+========================================================= */
 
-export const getCandidateById = async (req, res) => {
+export const getCandidateById = async (
+  req,
+  res
+) => {
   try {
     const { id } = req.params;
+
+    /* =====================================================
+       VALIDATE ID
+    ===================================================== */
 
     if (!isValidObjectId(id)) {
       return res.status(400).json({
         success: false,
-        message: "Invalid candidate ID.",
+        message:
+          "Invalid candidate ID.",
       });
     }
 
-    const candidate = await Candidate.findById(id)
-      .populate(
-        "election",
-        "title description electionType status startDate endDate isPublished isResultsPublished"
-      )
-      .lean();
+    /* =====================================================
+       FIND CANDIDATE
+    ===================================================== */
+
+    const candidate =
+      await Candidate.findById(id)
+        .populate(
+          "election",
+          "title description electionType status startDate endDate isPublished isResultsPublished"
+        )
+        .lean();
 
     if (!candidate) {
       return res.status(404).json({
         success: false,
-        message: "Candidate not found.",
+        message:
+          "Candidate not found.",
       });
     }
 
-    // --------------------------------------------------
-    // Public candidate endpoint should not expose
-    // candidates from unpublished elections
-    // --------------------------------------------------
+    /* =====================================================
+       PUBLIC ACCESS ONLY FOR PUBLISHED ELECTION
+    ===================================================== */
 
     if (
       !candidate.election ||
@@ -379,72 +591,94 @@ export const getCandidateById = async (req, res) => {
     ) {
       return res.status(404).json({
         success: false,
-        message: "Candidate not found.",
+        message:
+          "Candidate not found.",
       });
     }
+
+    /* =====================================================
+       RESPONSE
+    ===================================================== */
 
     return res.status(200).json({
       success: true,
       candidate,
     });
   } catch (error) {
-    console.error("GET CANDIDATE ERROR:", error);
+    console.error(
+      "GET CANDIDATE ERROR:",
+      error
+    );
 
     return res.status(500).json({
       success: false,
-      message: "Failed to fetch candidate.",
+      message:
+        "Failed to fetch candidate.",
     });
   }
 };
 
-// ======================================================
-// UPDATE CANDIDATE
-// ======================================================
+/* =========================================================
+   UPDATE CANDIDATE
+========================================================= */
 
-export const updateCandidate = async (req, res) => {
+export const updateCandidate = async (
+  req,
+  res
+) => {
   try {
     const { id } = req.params;
 
-    // --------------------------------------------------
-    // Validate candidate ID
-    // --------------------------------------------------
+    /* =====================================================
+       VALIDATE ID
+    ===================================================== */
 
     if (!isValidObjectId(id)) {
       return res.status(400).json({
         success: false,
-        message: "Invalid candidate ID.",
+        message:
+          "Invalid candidate ID.",
       });
     }
 
-    const candidate = await Candidate.findById(id);
+    /* =====================================================
+       FIND CANDIDATE
+    ===================================================== */
+
+    const candidate =
+      await Candidate.findById(id);
 
     if (!candidate) {
       return res.status(404).json({
         success: false,
-        message: "Candidate not found.",
+        message:
+          "Candidate not found.",
       });
     }
 
-    // --------------------------------------------------
-    // Find election
-    // --------------------------------------------------
+    /* =====================================================
+       FIND ELECTION
+    ===================================================== */
 
-    const election = await Election.findById(
-      candidate.election
-    );
+    const election =
+      await Election.findById(
+        candidate.election
+      );
 
     if (!election) {
       return res.status(404).json({
         success: false,
-        message: "Election not found.",
+        message:
+          "Election not found.",
       });
     }
 
-    // --------------------------------------------------
-    // Check election state
-    // --------------------------------------------------
+    /* =====================================================
+       CHECK ELECTION STATE
+    ===================================================== */
 
-    const electionState = getElectionState(election);
+    const electionState =
+      getElectionState(election);
 
     if (electionState === "LIVE") {
       return res.status(400).json({
@@ -454,7 +688,9 @@ export const updateCandidate = async (req, res) => {
       });
     }
 
-    if (electionState === "COMPLETED") {
+    if (
+      electionState === "COMPLETED"
+    ) {
       return res.status(400).json({
         success: false,
         message:
@@ -462,7 +698,9 @@ export const updateCandidate = async (req, res) => {
       });
     }
 
-    if (electionState === "CANCELLED") {
+    if (
+      electionState === "CANCELLED"
+    ) {
       return res.status(400).json({
         success: false,
         message:
@@ -470,12 +708,15 @@ export const updateCandidate = async (req, res) => {
       });
     }
 
-    // --------------------------------------------------
-    // Update name
-    // --------------------------------------------------
+    /* =====================================================
+       UPDATE NAME
+    ===================================================== */
 
     if (req.body.name !== undefined) {
-      const newName = normalizeString(req.body.name);
+      const newName =
+        normalizeString(
+          req.body.name
+        );
 
       if (newName.length < 2) {
         return res.status(400).json({
@@ -496,19 +737,17 @@ export const updateCandidate = async (req, res) => {
       candidate.name = newName;
     }
 
-    // --------------------------------------------------
-    // Update party
-    // --------------------------------------------------
+    /* =====================================================
+       UPDATE PARTY
+       
+       Optional for all election types.
+    ===================================================== */
 
     if (req.body.party !== undefined) {
-      const newParty = normalizeString(req.body.party);
-
-      if (!newParty) {
-        return res.status(400).json({
-          success: false,
-          message: "Candidate party is required.",
-        });
-      }
+      const newParty =
+        normalizeString(
+          req.body.party
+        );
 
       if (newParty.length > 100) {
         return res.status(400).json({
@@ -521,75 +760,170 @@ export const updateCandidate = async (req, res) => {
       candidate.party = newParty;
     }
 
-    // --------------------------------------------------
-    // Update optional fields
-    // --------------------------------------------------
+    /* =====================================================
+       UPDATE SYMBOL
+    ===================================================== */
 
     if (req.body.symbol !== undefined) {
-      candidate.symbol = normalizeString(
-        req.body.symbol
-      );
-    }
+      const newSymbol =
+        normalizeString(
+          req.body.symbol
+        );
 
-    if (req.body.photo !== undefined) {
-      candidate.photo = normalizeString(
-        req.body.photo
-      );
-    }
-
-    if (req.body.manifesto !== undefined) {
-      candidate.manifesto = normalizeString(
-        req.body.manifesto
-      );
-    }
-
-    if (req.body.biography !== undefined) {
-      candidate.biography = normalizeString(
-        req.body.biography
-      );
-    }
-
-    if (req.body.experience !== undefined) {
-      candidate.experience = normalizeString(
-        req.body.experience
-      );
-    }
-
-    if (req.body.position !== undefined) {
-      candidate.position = normalizeString(
-        req.body.position
-      );
-    }
-
-    // --------------------------------------------------
-    // Active / inactive
-    // --------------------------------------------------
-
-    if (req.body.isActive !== undefined) {
-      let activeValue = req.body.isActive;
-
-      // Support JSON boolean only
-      if (typeof activeValue !== "boolean") {
+      if (newSymbol.length > 100) {
         return res.status(400).json({
           success: false,
-          message: "isActive must be a boolean.",
+          message:
+            "Candidate symbol cannot exceed 100 characters.",
         });
       }
 
-      candidate.isActive = activeValue;
+      candidate.symbol = newSymbol;
     }
 
-    // --------------------------------------------------
-    // Prevent duplicate name
-    // --------------------------------------------------
+    /* =====================================================
+       UPDATE PHOTO
+    ===================================================== */
 
-    const duplicateCandidate = await Candidate.findOne({
-      _id: {
-        $ne: candidate._id,
-      },
-      election: candidate.election,
-      name: candidate.name,
-    });
+    if (req.body.photo !== undefined) {
+      candidate.photo =
+        normalizeString(
+          req.body.photo
+        );
+    }
+
+    /* =====================================================
+       UPDATE MANIFESTO
+    ===================================================== */
+
+    if (
+      req.body.manifesto !== undefined
+    ) {
+      const newManifesto =
+        normalizeString(
+          req.body.manifesto
+        );
+
+      if (newManifesto.length > 5000) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Candidate manifesto cannot exceed 5000 characters.",
+        });
+      }
+
+      candidate.manifesto =
+        newManifesto;
+    }
+
+    /* =====================================================
+       UPDATE BIOGRAPHY
+    ===================================================== */
+
+    if (
+      req.body.biography !== undefined
+    ) {
+      const newBiography =
+        normalizeString(
+          req.body.biography
+        );
+
+      if (newBiography.length > 5000) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Candidate biography cannot exceed 5000 characters.",
+        });
+      }
+
+      candidate.biography =
+        newBiography;
+    }
+
+    /* =====================================================
+       UPDATE EXPERIENCE
+    ===================================================== */
+
+    if (
+      req.body.experience !== undefined
+    ) {
+      const newExperience =
+        normalizeString(
+          req.body.experience
+        );
+
+      if (newExperience.length > 3000) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Candidate experience cannot exceed 3000 characters.",
+        });
+      }
+
+      candidate.experience =
+        newExperience;
+    }
+
+    /* =====================================================
+       UPDATE POSITION
+    ===================================================== */
+
+    if (
+      req.body.position !== undefined
+    ) {
+      const newPosition =
+        normalizeString(
+          req.body.position
+        );
+
+      if (newPosition.length > 150) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Candidate position cannot exceed 150 characters.",
+        });
+      }
+
+      candidate.position =
+        newPosition;
+    }
+
+    /* =====================================================
+       UPDATE ACTIVE STATUS
+    ===================================================== */
+
+    if (
+      req.body.isActive !== undefined
+    ) {
+      if (
+        typeof req.body.isActive !==
+        "boolean"
+      ) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "isActive must be a boolean.",
+        });
+      }
+
+      candidate.isActive =
+        req.body.isActive;
+    }
+
+    /* =====================================================
+       DUPLICATE NAME CHECK
+    ===================================================== */
+
+    const duplicateCandidate =
+      await Candidate.findOne({
+        _id: {
+          $ne: candidate._id,
+        },
+
+        election: candidate.election,
+
+        name: candidate.name,
+      });
 
     if (duplicateCandidate) {
       return res.status(409).json({
@@ -599,15 +933,34 @@ export const updateCandidate = async (req, res) => {
       });
     }
 
+    /* =====================================================
+       SAVE
+    ===================================================== */
+
     await candidate.save();
+
+    /* =====================================================
+       RESPONSE
+    ===================================================== */
 
     return res.status(200).json({
       success: true,
-      message: "Candidate updated successfully.",
-      candidate: getSafeCandidateData(candidate),
+      message:
+        "Candidate updated successfully.",
+      candidate:
+        getSafeCandidateData(
+          candidate
+        ),
     });
   } catch (error) {
-    console.error("UPDATE CANDIDATE ERROR:", error);
+    console.error(
+      "UPDATE CANDIDATE ERROR:",
+      error
+    );
+
+    /* =====================================================
+       MONGO DUPLICATE KEY
+    ===================================================== */
 
     if (error.code === 11000) {
       return res.status(409).json({
@@ -617,83 +970,107 @@ export const updateCandidate = async (req, res) => {
       });
     }
 
-    if (error.name === "ValidationError") {
-      const messages = Object.values(error.errors).map(
-        (err) => err.message
-      );
+    /* =====================================================
+       MONGOOSE VALIDATION
+    ===================================================== */
+
+    if (
+      error.name === "ValidationError"
+    ) {
+      const messages =
+        Object.values(error.errors).map(
+          (err) => err.message
+        );
 
       return res.status(400).json({
         success: false,
-        message: "Candidate validation failed.",
+        message:
+          "Candidate validation failed.",
         errors: messages,
       });
     }
 
     return res.status(500).json({
       success: false,
-      message: "Failed to update candidate.",
+      message:
+        "Failed to update candidate.",
     });
   }
 };
 
-// ======================================================
-// DELETE CANDIDATE
-// ======================================================
+/* =========================================================
+   DELETE CANDIDATE
+========================================================= */
 
-export const deleteCandidate = async (req, res) => {
+export const deleteCandidate = async (
+  req,
+  res
+) => {
   try {
     const { id } = req.params;
 
-    // --------------------------------------------------
-    // Validate candidate ID
-    // --------------------------------------------------
+    /* =====================================================
+       VALIDATE ID
+    ===================================================== */
 
     if (!isValidObjectId(id)) {
       return res.status(400).json({
         success: false,
-        message: "Invalid candidate ID.",
+        message:
+          "Invalid candidate ID.",
       });
     }
 
-    const candidate = await Candidate.findById(id);
+    /* =====================================================
+       FIND CANDIDATE
+    ===================================================== */
+
+    const candidate =
+      await Candidate.findById(id);
 
     if (!candidate) {
       return res.status(404).json({
         success: false,
-        message: "Candidate not found.",
+        message:
+          "Candidate not found.",
       });
     }
 
-    // --------------------------------------------------
-    // Find election
-    // --------------------------------------------------
+    /* =====================================================
+       FIND ELECTION
+    ===================================================== */
 
-    const election = await Election.findById(
-      candidate.election
-    );
+    const election =
+      await Election.findById(
+        candidate.election
+      );
 
     if (!election) {
       return res.status(404).json({
         success: false,
-        message: "Election not found.",
+        message:
+          "Election not found.",
       });
     }
 
-    // --------------------------------------------------
-    // Check election state
-    // --------------------------------------------------
+    /* =====================================================
+       CHECK ELECTION STATE
+    ===================================================== */
 
-    const electionState = getElectionState(election);
+    const electionState =
+      getElectionState(election);
 
     if (electionState === "LIVE") {
       return res.status(400).json({
         success: false,
         message:
-          "Candidate cannot be deleted while voting is live.",
+          "Candidate cannot be deleted while the election is live.",
       });
     }
 
-    if (electionState === "COMPLETED") {
+    if (
+      electionState === "COMPLETED"
+    ) {
       return res.status(400).json({
         success: false,
         message:
@@ -701,7 +1078,9 @@ export const deleteCandidate = async (req, res) => {
       });
     }
 
-    if (electionState === "CANCELLED") {
+    if (
+      electionState === "CANCELLED"
+    ) {
       return res.status(400).json({
         success: false,
         message:
@@ -709,16 +1088,18 @@ export const deleteCandidate = async (req, res) => {
       });
     }
 
-    // --------------------------------------------------
-    // IMPORTANT:
-    // Never physically delete a candidate if votes exist.
-    // Vote history must remain intact.
-    // --------------------------------------------------
+    /* =====================================================
+       CHECK EXISTING VOTES
+       
+       A candidate with votes must not be physically
+       deleted.
+    ===================================================== */
 
-    const voteCount = await Vote.countDocuments({
-      candidate: candidate._id,
-      election: election._id,
-    });
+    const voteCount =
+      await Vote.countDocuments({
+        candidate: candidate._id,
+        election: election._id,
+      });
 
     if (voteCount > 0) {
       return res.status(409).json({
@@ -729,17 +1110,17 @@ export const deleteCandidate = async (req, res) => {
       });
     }
 
-    // --------------------------------------------------
-    // Delete candidate
-    // --------------------------------------------------
+    /* =====================================================
+       DELETE CANDIDATE
+    ===================================================== */
 
     await Candidate.deleteOne({
       _id: candidate._id,
     });
 
-    // --------------------------------------------------
-    // Remove candidate reference from election
-    // --------------------------------------------------
+    /* =====================================================
+       REMOVE CANDIDATE REFERENCE FROM ELECTION
+    ===================================================== */
 
     await Election.updateOne(
       {
@@ -752,16 +1133,25 @@ export const deleteCandidate = async (req, res) => {
       }
     );
 
+    /* =====================================================
+       RESPONSE
+    ===================================================== */
+
     return res.status(200).json({
       success: true,
-      message: "Candidate deleted successfully.",
+      message:
+        "Candidate deleted successfully.",
     });
   } catch (error) {
-    console.error("DELETE CANDIDATE ERROR:", error);
+    console.error(
+      "DELETE CANDIDATE ERROR:",
+      error
+    );
 
     return res.status(500).json({
       success: false,
-      message: "Failed to delete candidate.",
+      message:
+        "Failed to delete candidate.",
     });
   }
 };

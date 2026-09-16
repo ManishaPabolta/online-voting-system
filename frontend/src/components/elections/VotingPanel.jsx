@@ -44,17 +44,17 @@ const VotingPanel = ({ candidates = [], electionId, onVoteSuccess }) => {
       const payload = {
         electionId,
         candidateId: selectedCandidate._id,
-        votingPassword,
         latitude: position.coords.latitude,
         longitude: position.coords.longitude,
+        votingPassword,
       };
 
       const response = await castVote(payload);
 
       const voteData =
         response?.data?.vote ||
-        response?.data ||
         response?.vote ||
+        response?.data ||
         null;
 
       const message =
@@ -95,6 +95,16 @@ const VotingPanel = ({ candidates = [], electionId, onVoteSuccess }) => {
       return;
     }
 
+    if (!electionId) {
+      toast.error("Election information is missing");
+      return;
+    }
+
+    if (!selectedCandidate?._id) {
+      toast.error("Please select a candidate");
+      return;
+    }
+
     if (!navigator.geolocation) {
       toast.error("Geolocation is not supported by your browser");
       return;
@@ -108,7 +118,9 @@ const VotingPanel = ({ candidates = [], electionId, onVoteSuccess }) => {
             "Location permission is required to cast your vote"
           );
         } else if (error.code === error.TIMEOUT) {
-          toast.error("Unable to get your location. Please try again.");
+          toast.error(
+            "Unable to get your location. Please try again."
+          );
         } else {
           toast.error("Unable to get your current location");
         }
@@ -201,8 +213,8 @@ const VotingPanel = ({ candidates = [], electionId, onVoteSuccess }) => {
                 </h3>
 
                 <p className="mt-2 text-sm text-slate-500">
-                  There are currently no candidates available for this
-                  election.
+                  There are currently no candidates available for
+                  this election.
                 </p>
               </div>
             ) : (
@@ -223,7 +235,9 @@ const VotingPanel = ({ candidates = [], electionId, onVoteSuccess }) => {
             <button
               type="button"
               onClick={handleContinue}
-              disabled={!selectedCandidate || candidates.length === 0}
+              disabled={
+                !selectedCandidate || candidates.length === 0
+              }
               className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 px-5 py-4 text-sm font-bold text-white shadow-lg shadow-emerald-500/10 transition-all duration-300 hover:from-emerald-400 hover:to-teal-400 disabled:cursor-not-allowed disabled:opacity-40"
             >
               Continue
@@ -246,12 +260,15 @@ const VotingPanel = ({ candidates = [], electionId, onVoteSuccess }) => {
               <div className="flex items-center gap-4 rounded-2xl border border-emerald-400/20 bg-emerald-500/[0.06] p-4">
                 <img
                   src={
-                    selectedCandidate?.image ||
                     selectedCandidate?.photo ||
                     "https://via.placeholder.com/150?text=Candidate"
                   }
                   alt={selectedCandidate?.name || "Candidate"}
                   className="h-14 w-14 rounded-full object-cover"
+                  onError={(event) => {
+                    event.currentTarget.src =
+                      "https://via.placeholder.com/150?text=Candidate";
+                  }}
                 />
 
                 <div className="min-w-0">
@@ -286,8 +303,8 @@ const VotingPanel = ({ candidates = [], electionId, onVoteSuccess }) => {
                   <input
                     type={showPassword ? "text" : "password"}
                     value={votingPassword}
-                    onChange={(e) =>
-                      setVotingPassword(e.target.value)
+                    onChange={(event) =>
+                      setVotingPassword(event.target.value)
                     }
                     placeholder="Enter your voting password"
                     autoComplete="off"
@@ -362,12 +379,17 @@ const VotingPanel = ({ candidates = [], electionId, onVoteSuccess }) => {
                 <button
                   type="button"
                   onClick={handleSubmit}
-                  disabled={loading || !votingPassword.trim()}
+                  disabled={
+                    loading || !votingPassword.trim()
+                  }
                   className="flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 px-5 py-3.5 text-sm font-bold text-white shadow-lg shadow-emerald-500/10 transition hover:from-emerald-400 hover:to-teal-400 disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   {loading ? (
                     <>
-                      <Loader2 size={18} className="animate-spin" />
+                      <Loader2
+                        size={18}
+                        className="animate-spin"
+                      />
                       Casting Vote...
                     </>
                   ) : (
