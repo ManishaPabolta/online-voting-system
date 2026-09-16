@@ -9,20 +9,34 @@ import {
   KeyRound,
   Loader2,
   ArrowLeft,
+  RefreshCw,
 } from "lucide-react";
 
-import { verifyOTP } from "../../api/authApi";
+import {
+  verifyOTP,
+  resendOTP,
+} from "../../api/authApi";
 
 const OTPForm = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
+  // ==========================================
+  // STATE
+  // ==========================================
+
   const [loading, setLoading] = useState(false);
+  const [resending, setResending] = useState(false);
+  const [cooldown, setCooldown] = useState(0);
 
   const [formData, setFormData] = useState({
     email: location.state?.email || "",
     otp: "",
   });
+
+  // ==========================================
+  // UPDATE EMAIL FROM ROUTE STATE
+  // ==========================================
 
   useEffect(() => {
     if (location.state?.email) {
@@ -33,11 +47,40 @@ const OTPForm = () => {
     }
   }, [location.state]);
 
+  // ==========================================
+  // COOLDOWN TIMER
+  // ==========================================
+
+  useEffect(() => {
+    if (cooldown <= 0) {
+      return;
+    }
+
+    const timer = setInterval(() => {
+      setCooldown((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          return 0;
+        }
+
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [cooldown]);
+
+  // ==========================================
+  // HANDLE INPUT
+  // ==========================================
+
   const handleChange = (e) => {
     const { name, value } = e.target;
 
     if (name === "otp") {
-      const numericValue = value.replace(/\D/g, "").slice(0, 6);
+      const numericValue = value
+        .replace(/\D/g, "")
+        .slice(0, 6);
 
       setFormData((prev) => ({
         ...prev,
@@ -53,61 +96,195 @@ const OTPForm = () => {
     }));
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  // ==========================================
+  // RESEND OTP
+  // ==========================================
 
-    if (!formData.email.trim()) {
+  const handleResendOTP = async () => {
+    const email = formData.email.trim();
+
+    if (!email) {
       toast.error("Please enter your email.");
       return;
     }
 
-    if (formData.otp.length !== 6) {
-      toast.error("Please enter a valid 6-digit OTP.");
+    if (resending || cooldown > 0) {
+      return;
+    }
+
+    try {
+      setResending(true);
+
+      const response = await resendOTP(email);
+
+      console.log(
+        "RESEND OTP RESPONSE:",
+        response
+      );
+
+      // Clear old OTP after a new OTP is generated
+      setFormData((prev) => ({
+        ...prev,
+        otp: "",
+      }));
+
+      // 60 second resend cooldown
+      setCooldown(60);
+
+      toast.success(
+        response?.message ||
+          "A new OTP has been sent to your email."
+      );
+    } catch (error) {
+      console.error(
+        "RESEND OTP ERROR:",
+        error
+      );
+
+      toast.error(
+        error?.response?.data?.message ||
+          error?.response?.data?.error ||
+          error?.message ||
+          "Unable to resend OTP."
+      );
+    } finally {
+      setResending(false);
+    }
+  };
+
+  // ==========================================
+  // VERIFY OTP
+  // ==========================================
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+
+    const email = formData.email.trim();
+    const otp = formData.otp.trim();
+
+    if (!email) {
+      toast.error("Please enter your email.");
+      return;
+    }
+
+    if (otp.length !== 6) {
+      toast.error(
+        "Please enter a valid 6-digit OTP."
+      );
+      return;
+    }
+
+    if (loading) {
       return;
     }
 
     try {
       setLoading(true);
 
-      await verifyOTP({
-        email: formData.email.trim(),
-        otp: formData.otp,
+      const response = await verifyOTP({
+        email,
+        otp,
       });
 
-      toast.success("Email verified successfully!");
-
-      navigate("/login", { replace: true });
-    } catch (error) {
-      console.error("OTP ERROR:", error);
-
-      toast.error(
-        error?.response?.data?.message ||
-          "OTP verification failed."
+      console.log(
+        "VERIFY OTP RESPONSE:",
+        response
       );
+
+      toast.success(
+        response?.message ||
+          "Email verified successfully!"
+      );
+
+      // ========================================
+      // GO BACK TO LOGIN
+      // ========================================
+
+      navigate("/login", {
+        replace: true,
+        state: {
+          verifiedEmail: email,
+        },
+      });
+    } catch (error) {
+      console.error(
+        "OTP ERROR:",
+        error
+      );
+
+      const status =
+        error?.response?.status;
+
+      const message =
+        error?.response?.data?.message ||
+        error?.response?.data?.error ||
+        error?.message ||
+        "OTP verification failed.";
+
+      if (status === 400) {
+        toast.error(message);
+      } else if (status === 404) {
+        toast.error(
+          "No account was found with this email."
+        );
+      } else {
+        toast.error(message);
+      }
     } finally {
       setLoading(false);
     }
   };
 
+  // ==========================================
+  // UI
+  // ==========================================
+
   return (
     <motion.div
-      initial={{ opacity: 0, y: 30, scale: 0.97 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      transition={{ duration: 0.55, ease: "easeOut" }}
+      initial={{
+        opacity: 0,
+        y: 30,
+        scale: 0.97,
+      }}
+      animate={{
+        opacity: 1,
+        y: 0,
+        scale: 1,
+      }}
+      transition={{
+        duration: 0.55,
+        ease: "easeOut",
+      }}
       className="relative w-full max-w-md"
     >
       {/* Glow */}
+
       <div className="absolute -inset-1 rounded-[2rem] bg-gradient-to-r from-teal-500/20 via-emerald-500/10 to-teal-500/20 blur-xl" />
 
       <div className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-slate-900/80 p-6 shadow-2xl backdrop-blur-2xl sm:p-8">
+
         {/* Background Glow */}
+
         <div className="pointer-events-none absolute -right-20 -top-20 h-40 w-40 rounded-full bg-teal-500/10 blur-3xl" />
 
-        {/* Header */}
+        <div className="pointer-events-none absolute -bottom-20 -left-20 h-40 w-40 rounded-full bg-emerald-500/10 blur-3xl" />
+
+        {/* ======================================
+            HEADER
+        ======================================= */}
+
         <motion.div
-          initial={{ opacity: 0, y: -15 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
+          initial={{
+            opacity: 0,
+            y: -15,
+          }}
+          animate={{
+            opacity: 1,
+            y: 0,
+          }}
+          transition={{
+            delay: 0.1,
+          }}
           className="relative mb-8 text-center"
         >
           <motion.div
@@ -137,12 +314,16 @@ const OTPForm = () => {
           </p>
         </motion.div>
 
-        {/* Form */}
+        {/* ======================================
+            FORM
+        ======================================= */}
+
         <form
           onSubmit={handleSubmit}
           className="relative space-y-5"
         >
-          {/* Email */}
+          {/* EMAIL */}
+
           <div>
             <label
               htmlFor="otp-email"
@@ -166,12 +347,14 @@ const OTPForm = () => {
                 onChange={handleChange}
                 required
                 autoComplete="email"
-                className="w-full bg-transparent px-3 py-4 text-sm text-white outline-none placeholder:text-slate-500"
+                disabled={loading || resending}
+                className="w-full bg-transparent px-3 py-4 text-sm text-white outline-none placeholder:text-slate-500 disabled:cursor-not-allowed disabled:opacity-70"
               />
             </div>
           </div>
 
           {/* OTP */}
+
           <div>
             <label
               htmlFor="otp-code"
@@ -197,47 +380,121 @@ const OTPForm = () => {
                 value={formData.otp}
                 onChange={handleChange}
                 required
-                className="w-full bg-transparent px-3 py-4 text-center text-xl font-semibold tracking-[0.45em] text-white outline-none placeholder:text-sm placeholder:tracking-normal placeholder:text-slate-500"
+                disabled={loading || resending}
+                className="w-full bg-transparent px-3 py-4 text-center text-xl font-semibold tracking-[0.45em] text-white outline-none placeholder:text-sm placeholder:tracking-normal placeholder:text-slate-500 disabled:opacity-70"
               />
             </div>
 
             <div className="mt-2 flex justify-between px-1 text-xs text-slate-500">
-              <span>6 digits required</span>
-              <span>{formData.otp.length}/6</span>
+              <span>
+                6 digits required
+              </span>
+
+              <span>
+                {formData.otp.length}/6
+              </span>
             </div>
           </div>
 
-          {/* Verify */}
+          {/* ====================================
+              VERIFY BUTTON
+          ===================================== */}
+
           <motion.button
-            whileHover={!loading ? { scale: 1.015 } : {}}
-            whileTap={!loading ? { scale: 0.98 } : {}}
+            whileHover={
+              !loading && !resending
+                ? { scale: 1.015 }
+                : {}
+            }
+            whileTap={
+              !loading && !resending
+                ? { scale: 0.98 }
+                : {}
+            }
             type="submit"
-            disabled={loading}
+            disabled={loading || resending}
             className="group relative flex w-full items-center justify-center gap-2 overflow-hidden rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 py-4 font-semibold text-white shadow-lg shadow-emerald-500/10 transition-all duration-300 hover:shadow-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {loading ? (
               <>
-                <Loader2 size={19} className="animate-spin" />
+                <Loader2
+                  size={19}
+                  className="animate-spin"
+                />
+
                 Verifying...
               </>
             ) : (
               <>
                 <ShieldCheck size={19} />
+
                 Verify OTP
               </>
             )}
           </motion.button>
         </form>
 
-        {/* Back */}
+        {/* ======================================
+            RESEND OTP
+        ======================================= */}
+
+        <div className="mt-6 rounded-2xl border border-white/5 bg-white/[0.02] p-4 text-center">
+
+          <p className="text-sm text-slate-400">
+            Didn&apos;t receive the OTP?
+          </p>
+
+          <button
+            type="button"
+            onClick={handleResendOTP}
+            disabled={
+              loading ||
+              resending ||
+              cooldown > 0
+            }
+            className="mx-auto mt-3 inline-flex items-center gap-2 rounded-xl border border-emerald-400/20 bg-emerald-400/5 px-4 py-2.5 text-sm font-semibold text-emerald-300 transition-all duration-300 hover:border-emerald-400/40 hover:bg-emerald-400/10 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {resending ? (
+              <>
+                <Loader2
+                  size={16}
+                  className="animate-spin"
+                />
+
+                Sending OTP...
+              </>
+            ) : cooldown > 0 ? (
+              <>
+                <RefreshCw size={16} />
+
+                Resend in {cooldown}s
+              </>
+            ) : (
+              <>
+                <RefreshCw size={16} />
+
+                Resend OTP
+              </>
+            )}
+          </button>
+
+        </div>
+
+        {/* ======================================
+            BACK
+        ======================================= */}
+
         <button
           type="button"
           onClick={() => navigate("/login")}
-          className="mx-auto mt-6 flex items-center gap-2 text-sm text-slate-500 transition-colors hover:text-emerald-400"
+          disabled={loading || resending}
+          className="mx-auto mt-6 flex items-center gap-2 text-sm text-slate-500 transition-colors hover:text-emerald-400 disabled:cursor-not-allowed disabled:opacity-50"
         >
           <ArrowLeft size={16} />
+
           Back to Login
         </button>
+
       </div>
     </motion.div>
   );

@@ -13,17 +13,18 @@ import {
   Loader2,
   Eye,
   EyeOff,
+  RefreshCw,
 } from "lucide-react";
 
-import { loginUser } from "../../api/authApi";
+import {
+  loginUser,
+  resendOTP,
+} from "../../api/authApi";
+
 import { useAuth } from "../../context/AuthContext";
 
 const LoginForm = () => {
   const navigate = useNavigate();
-
-  // ==========================================
-  // AUTH CONTEXT
-  // ==========================================
 
   const { handleLogin } = useAuth();
 
@@ -32,6 +33,7 @@ const LoginForm = () => {
   // ==========================================
 
   const [loading, setLoading] = useState(false);
+  const [resendingOTP, setResendingOTP] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
   const [showVerifyBox, setShowVerifyBox] = useState(false);
@@ -43,7 +45,7 @@ const LoginForm = () => {
   });
 
   // ==========================================
-  // HANDLE INPUT CHANGE
+  // HANDLE INPUT
   // ==========================================
 
   const handleChange = (e) => {
@@ -56,7 +58,78 @@ const LoginForm = () => {
   };
 
   // ==========================================
-  // HANDLE LOGIN
+  // RESEND VERIFICATION OTP
+  // ==========================================
+
+  const handleVerifyEmail = async () => {
+    const email = verifyEmail.trim();
+
+    if (!email) {
+      toast.error("Email address is required.");
+      return;
+    }
+
+    if (resendingOTP) {
+      return;
+    }
+
+    try {
+      setResendingOTP(true);
+
+      // ========================================
+      // SEND NEW OTP
+      // ========================================
+
+      const response = await resendOTP(email);
+
+      console.log("RESEND OTP RESPONSE:", response);
+
+      toast.success(
+        response?.message ||
+          "A new verification OTP has been sent to your email."
+      );
+
+      // ========================================
+      // OPEN OTP PAGE ONLY AFTER SUCCESS
+      // ========================================
+
+      navigate("/verify-otp", {
+        state: {
+          email,
+        },
+      });
+    } catch (error) {
+      console.error("RESEND OTP ERROR:", error);
+
+      const status = error?.response?.status;
+
+      const message =
+        error?.response?.data?.message ||
+        error?.response?.data?.error ||
+        error?.message ||
+        "Unable to send verification OTP.";
+
+      if (status === 404) {
+        toast.error(
+          "No account was found with this email address."
+        );
+      } else if (status === 400) {
+        toast.error(message);
+      } else if (status === 403) {
+        toast.error(
+          message ||
+            "This account cannot request verification OTP."
+        );
+      } else {
+        toast.error(message);
+      }
+    } finally {
+      setResendingOTP(false);
+    }
+  };
+
+  // ==========================================
+  // LOGIN
   // ==========================================
 
   const handleSubmit = async (e) => {
@@ -69,9 +142,9 @@ const LoginForm = () => {
     const email = formData.email.trim();
     const password = formData.password;
 
-    // ------------------------------------------
+    // ========================================
     // VALIDATION
-    // ------------------------------------------
+    // ========================================
 
     if (!email || !password.trim()) {
       toast.error("Please fill in all fields.");
@@ -82,9 +155,9 @@ const LoginForm = () => {
       setLoading(true);
       setShowVerifyBox(false);
 
-      // ----------------------------------------
+      // ========================================
       // LOGIN API
-      // ----------------------------------------
+      // ========================================
 
       const response = await loginUser({
         email,
@@ -93,23 +166,15 @@ const LoginForm = () => {
 
       console.log("LOGIN RESPONSE:", response);
 
-      // ----------------------------------------
-      // HANDLE AUTHENTICATION
-      // ----------------------------------------
-      //
-      // AuthContext handles:
-      // - token
-      // - user
-      // - React auth state
-      // - /me fallback if required
-      //
-      // ----------------------------------------
+      // ========================================
+      // AUTHENTICATION
+      // ========================================
 
       const loggedInUser = await handleLogin(response);
 
-      // ----------------------------------------
-      // VERIFY TOKEN
-      // ----------------------------------------
+      // ========================================
+      // CHECK TOKEN
+      // ========================================
 
       const token =
         response?.token ||
@@ -122,10 +187,6 @@ const LoginForm = () => {
         );
       }
 
-      // ----------------------------------------
-      // LOGIN SUCCESS
-      // ----------------------------------------
-
       console.log(
         "LOGIN SUCCESS:",
         loggedInUser
@@ -135,9 +196,9 @@ const LoginForm = () => {
         "Welcome back! Login successful."
       );
 
-      // ----------------------------------------
-      // GO TO DASHBOARD
-      // ----------------------------------------
+      // ========================================
+      // DASHBOARD
+      // ========================================
 
       navigate("/dashboard", {
         replace: true,
@@ -148,19 +209,57 @@ const LoginForm = () => {
         error
       );
 
-      // ----------------------------------------
-      // BACKEND ERROR MESSAGE
-      // ----------------------------------------
+      const status = error?.response?.status;
+
+      const backendData =
+        error?.response?.data || {};
 
       const message =
-        error?.response?.data?.message ||
-        error?.response?.data?.error ||
+        backendData?.message ||
+        backendData?.error ||
         error?.message ||
         "Unable to login. Please try again.";
 
-      // ----------------------------------------
-      // EMAIL VERIFICATION CHECK
-      // ----------------------------------------
+      // ========================================
+      // EMAIL NOT VERIFIED
+      // ========================================
+      //
+      // Backend returns:
+      //
+      // 403
+      // {
+      //   success: false,
+      //   message: "...",
+      //   requiresVerification: true,
+      //   email: "..."
+      // }
+      //
+      // ========================================
+
+      const requiresVerification =
+        backendData?.requiresVerification === true;
+
+      if (
+        status === 403 &&
+        requiresVerification
+      ) {
+        const emailFromBackend =
+          backendData?.email ||
+          email;
+
+        setVerifyEmail(emailFromBackend);
+        setShowVerifyBox(true);
+
+        toast.error(
+          "Your email is not verified yet."
+        );
+
+        return;
+      }
+
+      // ========================================
+      // FALLBACK FOR OLD ERROR MESSAGE
+      // ========================================
 
       const lowerMessage =
         String(message).toLowerCase();
@@ -171,7 +270,17 @@ const LoginForm = () => {
       ) {
         setVerifyEmail(email);
         setShowVerifyBox(true);
+
+        toast.error(
+          "Your email is not verified yet."
+        );
+
+        return;
       }
+
+      // ========================================
+      // OTHER ERRORS
+      // ========================================
 
       toast.error(message);
     } finally {
@@ -278,10 +387,7 @@ const LoginForm = () => {
           onSubmit={handleSubmit}
           className="relative space-y-5"
         >
-
-          {/* ==================================
-              EMAIL
-          =================================== */}
+          {/* EMAIL */}
 
           <div>
             <label
@@ -305,16 +411,14 @@ const LoginForm = () => {
                 value={formData.email}
                 onChange={handleChange}
                 autoComplete="email"
-                disabled={loading}
+                disabled={loading || resendingOTP}
                 required
                 className="w-full bg-transparent px-3 py-4 text-sm text-white outline-none placeholder:text-slate-500 disabled:cursor-not-allowed disabled:opacity-70"
               />
             </div>
           </div>
 
-          {/* ==================================
-              PASSWORD
-          =================================== */}
+          {/* PASSWORD */}
 
           <div>
             <label
@@ -342,7 +446,7 @@ const LoginForm = () => {
                 value={formData.password}
                 onChange={handleChange}
                 autoComplete="current-password"
-                disabled={loading}
+                disabled={loading || resendingOTP}
                 required
                 className="w-full bg-transparent px-3 py-4 text-sm text-white outline-none placeholder:text-slate-500 disabled:cursor-not-allowed disabled:opacity-70"
               />
@@ -354,7 +458,7 @@ const LoginForm = () => {
                     (prev) => !prev
                   )
                 }
-                disabled={loading}
+                disabled={loading || resendingOTP}
                 aria-label={
                   showPassword
                     ? "Hide password"
@@ -371,9 +475,7 @@ const LoginForm = () => {
             </div>
           </div>
 
-          {/* ==================================
-              LOGIN BUTTON
-          =================================== */}
+          {/* LOGIN BUTTON */}
 
           <motion.button
             whileHover={
@@ -387,7 +489,7 @@ const LoginForm = () => {
                 : {}
             }
             type="submit"
-            disabled={loading}
+            disabled={loading || resendingOTP}
             className="group relative mt-2 flex w-full items-center justify-center gap-2 overflow-hidden rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 py-4 font-semibold text-white shadow-lg shadow-emerald-500/10 transition-all duration-300 hover:shadow-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-60"
           >
             <span className="absolute inset-0 -translate-x-full bg-white/10 transition-transform duration-500 group-hover:translate-x-0" />
@@ -463,26 +565,51 @@ const LoginForm = () => {
                 </div>
 
                 <p className="mb-4 text-sm leading-6 text-slate-400">
-                  Your email address has not been verified yet. Verify your OTP to continue.
+                  Your email address has not been verified yet.
+                  Click below to receive a new OTP.
                 </p>
 
-                <button
+                <div className="mb-4 rounded-xl border border-white/5 bg-slate-950/40 px-3 py-2.5">
+                  <p className="truncate text-xs text-slate-500">
+                    Verification email
+                  </p>
+
+                  <p className="truncate text-sm font-medium text-slate-200">
+                    {verifyEmail}
+                  </p>
+                </div>
+
+                <motion.button
                   type="button"
-                  onClick={() =>
-                    navigate(
-                      "/verify-otp",
-                      {
-                        state: {
-                          email:
-                            verifyEmail,
-                        },
-                      }
-                    )
+                  onClick={handleVerifyEmail}
+                  disabled={resendingOTP}
+                  whileHover={
+                    !resendingOTP
+                      ? { scale: 1.01 }
+                      : {}
                   }
-                  className="w-full rounded-xl bg-amber-400 py-3 font-semibold text-slate-950 transition-all duration-300 hover:bg-amber-300"
+                  whileTap={
+                    !resendingOTP
+                      ? { scale: 0.98 }
+                      : {}
+                  }
+                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-amber-400 py-3 font-semibold text-slate-950 transition-all duration-300 hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  Verify Email
-                </button>
+                  {resendingOTP ? (
+                    <>
+                      <Loader2
+                        size={18}
+                        className="animate-spin"
+                      />
+                      Sending OTP...
+                    </>
+                  ) : (
+                    <>
+                      <ShieldCheck size={18} />
+                      Send Verification OTP
+                    </>
+                  )}
+                </motion.button>
 
               </div>
             </motion.div>

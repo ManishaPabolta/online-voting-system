@@ -5,11 +5,7 @@ import API from "./axios";
 // ==========================================
 
 export const registerUser = async (userData) => {
-  const response = await API.post(
-    "/auth/register",
-    userData
-  );
-
+  const response = await API.post("/auth/register", userData);
   return response.data;
 };
 
@@ -18,10 +14,18 @@ export const registerUser = async (userData) => {
 // ==========================================
 
 export const verifyOTP = async (otpData) => {
-  const response = await API.post(
-    "/auth/verify-otp",
-    otpData
-  );
+  const response = await API.post("/auth/verify-otp", otpData);
+  return response.data;
+};
+
+// ==========================================
+// RESEND OTP
+// ==========================================
+
+export const resendOTP = async (email) => {
+  const response = await API.post("/auth/resend-otp", {
+    email,
+  });
 
   return response.data;
 };
@@ -31,11 +35,7 @@ export const verifyOTP = async (otpData) => {
 // ==========================================
 
 export const loginUser = async (userData) => {
-  const response = await API.post(
-    "/auth/login",
-    userData
-  );
-
+  const response = await API.post("/auth/login", userData);
   return response.data;
 };
 
@@ -44,24 +44,17 @@ export const loginUser = async (userData) => {
 // ==========================================
 
 export const getCurrentUser = async () => {
-  const response = await API.get(
-    "/auth/me"
-  );
-
+  const response = await API.get("/auth/me");
   return response.data;
 };
 
 // ==========================================
 // LOGOUT
 // ==========================================
-
-/*
-  Current backend authRoutes does not expose
-  /auth/logout.
-
-  Therefore logout is handled on the frontend
-  by removing the stored access token/user.
-*/
+//
+// Backend currently does not expose /auth/logout.
+// Logout is handled locally.
+//
 
 export const logoutUser = async () => {
   localStorage.removeItem("token");
