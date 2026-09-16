@@ -18,6 +18,27 @@ const isValidObjectId = (id) => {
   return mongoose.isValidObjectId(id);
 };
 
+const allowedElectionTypes = [
+  "PRESIDENTIAL",
+  "PARLIAMENTARY",
+  "ASSEMBLY",
+  "LOCAL",
+  "COLLEGE",
+  "ORGANIZATION",
+  "OTHER",
+];
+
+const allowedStatuses = [
+  "DRAFT",
+  "UPCOMING",
+  "LIVE",
+  "COMPLETED",
+  "CANCELLED",
+];
+
+/*
+ * Dynamically calculate election state.
+ */
 const getElectionStatus = (election) => {
   if (election.status === "CANCELLED") {
     return "CANCELLED";
@@ -76,6 +97,35 @@ const normalizeInstructions = (instructions) => {
     .slice(0, 100);
 };
 
+/*
+ * Make sure old elections created before the current
+ * schema still have createdBy before calling save().
+ *
+ * This fixes:
+ * Election validation failed:
+ * createdBy: Path `createdBy` is required.
+ */
+const ensureCreatedBy = (election, req) => {
+  if (
+    !election.createdBy ||
+    !isValidObjectId(election.createdBy)
+  ) {
+    const userId = getUserId(req);
+
+    if (
+      userId &&
+      isValidObjectId(userId)
+    ) {
+      election.createdBy = userId;
+      return true;
+    }
+
+    return false;
+  }
+
+  return true;
+};
+
 /* ======================================================
    NOTIFICATION HELPER
 ====================================================== */
@@ -120,8 +170,8 @@ const notifyUsers = async ({
     );
   } catch (error) {
     /*
-     * Notification failure should not make the
-     * election operation itself fail.
+     * Notification failure must never break
+     * the election operation.
      */
     console.error(
       "ELECTION NOTIFICATION ERROR:",
@@ -139,7 +189,10 @@ export const createElection = async (req, res) => {
   try {
     const userId = getUserId(req);
 
-    if (!userId || !isValidObjectId(userId)) {
+    if (
+      !userId ||
+      !isValidObjectId(userId)
+    ) {
       return res.status(401).json({
         success: false,
         message: "Authentication required.",
@@ -216,16 +269,6 @@ export const createElection = async (req, res) => {
        ELECTION TYPE
     -------------------------------------------------- */
 
-    const allowedElectionTypes = [
-      "PRESIDENTIAL",
-      "PARLIAMENTARY",
-      "ASSEMBLY",
-      "LOCAL",
-      "COLLEGE",
-      "ORGANIZATION",
-      "OTHER",
-    ];
-
     const cleanElectionType =
       electionType || "OTHER";
 
@@ -236,8 +279,7 @@ export const createElection = async (req, res) => {
     ) {
       return res.status(400).json({
         success: false,
-        message:
-          "Invalid election type.",
+        message: "Invalid election type.",
       });
     }
 
@@ -300,6 +342,10 @@ export const createElection = async (req, res) => {
       success: false,
       message:
         "Failed to create election.",
+      error:
+        process.env.NODE_ENV === "development"
+          ? error.message
+          : undefined,
     });
   }
 };
@@ -307,8 +353,6 @@ export const createElection = async (req, res) => {
 /* ======================================================
    GET ALL ELECTIONS
    GET /api/elections
-
-   Admin endpoint
 ====================================================== */
 
 export const getAllElections = async (
@@ -324,15 +368,9 @@ export const getAllElections = async (
 
     if (req.query.status) {
       const status =
-        String(req.query.status).toUpperCase();
-
-      const allowedStatuses = [
-        "DRAFT",
-        "UPCOMING",
-        "LIVE",
-        "COMPLETED",
-        "CANCELLED",
-      ];
+        String(
+          req.query.status
+        ).toUpperCase();
 
       if (
         !allowedStatuses.includes(status)
@@ -392,9 +430,6 @@ export const getAllElections = async (
           createdAt: -1,
         });
 
-    /*
-     * Return dynamically calculated state.
-     */
     const formattedElections =
       elections.map((election) => {
         const item =
@@ -514,7 +549,8 @@ export const getElectionById = async (
     if (!isValidObjectId(id)) {
       return res.status(400).json({
         success: false,
-        message: "Invalid election ID.",
+        message:
+          "Invalid election ID.",
       });
     }
 
@@ -538,10 +574,8 @@ export const getElectionById = async (
     }
 
     /*
-     * Do not expose unpublished drafts through
-     * a public endpoint.
-     *
-     * Admin routes can still access them.
+     * Public endpoint does not expose
+     * unpublished drafts.
      */
     if (
       !election.isPublished ||
@@ -595,6 +629,19 @@ export const updateElection = async (
   try {
     const { id } = req.params;
 
+    const userId = getUserId(req);
+
+    if (
+      !userId ||
+      !isValidObjectId(userId)
+    ) {
+      return res.status(401).json({
+        success: false,
+        message:
+          "Authentication required.",
+      });
+    }
+
     if (!isValidObjectId(id)) {
       return res.status(400).json({
         success: false,
@@ -614,13 +661,24 @@ export const updateElection = async (
       });
     }
 
+    /*
+     * Repair old elections that do not have
+     * createdBy.
+     *
+     * This is the exact fix for:
+     * "createdBy: Path `createdBy` is required."
+     */
+    if (!election.createdBy) {
+      election.createdBy = userId;
+    }
+
     const currentStatus =
       getElectionStatus(
         election
       );
 
     /* --------------------------------------------------
-       LOCK ACTIVE / COMPLETED / CANCELLED
+       LOCK LIVE / COMPLETED / CANCELLED
     -------------------------------------------------- */
 
     if (
@@ -637,27 +695,58 @@ export const updateElection = async (
       });
     }
 
+    /* --------------------------------------------------
+       OLD VALUES
+    -------------------------------------------------- */
+
     const oldTitle =
       election.title;
 
     const oldStartDate =
-      election.startDate;
+      new Date(
+        election.startDate
+      );
 
     const oldEndDate =
-      election.endDate;
+      new Date(
+        election.endDate
+      );
 
     /* --------------------------------------------------
-       ALLOWED FIELDS
+       TITLE
     -------------------------------------------------- */
 
     if (
       req.body?.title !== undefined
     ) {
-      election.title =
+      const cleanTitle =
         normalizeString(
           req.body.title
         );
+
+      if (cleanTitle.length < 3) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Election title must contain at least 3 characters.",
+        });
+      }
+
+      if (cleanTitle.length > 200) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Election title cannot exceed 200 characters.",
+        });
+      }
+
+      election.title =
+        cleanTitle;
     }
+
+    /* --------------------------------------------------
+       DESCRIPTION
+    -------------------------------------------------- */
 
     if (
       req.body?.description !== undefined
@@ -668,22 +757,21 @@ export const updateElection = async (
         );
     }
 
+    /* --------------------------------------------------
+       ELECTION TYPE
+    -------------------------------------------------- */
+
     if (
       req.body?.electionType !== undefined
     ) {
-      const allowedTypes = [
-        "PRESIDENTIAL",
-        "PARLIAMENTARY",
-        "ASSEMBLY",
-        "LOCAL",
-        "COLLEGE",
-        "ORGANIZATION",
-        "OTHER",
-      ];
+      const type =
+        String(
+          req.body.electionType
+        ).toUpperCase();
 
       if (
-        !allowedTypes.includes(
-          req.body.electionType
+        !allowedElectionTypes.includes(
+          type
         )
       ) {
         return res.status(400).json({
@@ -694,8 +782,12 @@ export const updateElection = async (
       }
 
       election.electionType =
-        req.body.electionType;
+        type;
     }
+
+    /* --------------------------------------------------
+       START DATE
+    -------------------------------------------------- */
 
     if (
       req.body?.startDate !== undefined
@@ -721,6 +813,10 @@ export const updateElection = async (
         start;
     }
 
+    /* --------------------------------------------------
+       END DATE
+    -------------------------------------------------- */
+
     if (
       req.body?.endDate !== undefined
     ) {
@@ -745,6 +841,10 @@ export const updateElection = async (
         end;
     }
 
+    /* --------------------------------------------------
+       BANNER IMAGE
+    -------------------------------------------------- */
+
     if (
       req.body?.bannerImage !== undefined
     ) {
@@ -754,6 +854,10 @@ export const updateElection = async (
         );
     }
 
+    /* --------------------------------------------------
+       INSTRUCTIONS
+    -------------------------------------------------- */
+
     if (
       req.body?.instructions !== undefined
     ) {
@@ -762,6 +866,10 @@ export const updateElection = async (
           req.body.instructions
         );
     }
+
+    /* --------------------------------------------------
+       RESULTS BEFORE END
+    -------------------------------------------------- */
 
     if (
       req.body?.allowResultsBeforeEnd !==
@@ -775,10 +883,11 @@ export const updateElection = async (
     }
 
     /* --------------------------------------------------
-       VALIDATE TITLE
+       FINAL VALIDATION
     -------------------------------------------------- */
 
     if (
+      !election.title ||
       election.title.length < 3
     ) {
       return res.status(400).json({
@@ -788,9 +897,16 @@ export const updateElection = async (
       });
     }
 
-    /* --------------------------------------------------
-       VALIDATE DATES
-    -------------------------------------------------- */
+    if (
+      !election.startDate ||
+      !election.endDate
+    ) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Start date and end date are required.",
+      });
+    }
 
     if (
       election.endDate <=
@@ -804,14 +920,13 @@ export const updateElection = async (
     }
 
     /*
-     * Once an election has been published,
-     * don't allow moving its start date into
-     * an already-passed time.
+     * A published election cannot be moved
+     * into a state where its start date is
+     * already in the past.
      */
     if (
       election.isPublished &&
-      election.startDate <
-        new Date()
+      election.startDate < new Date()
     ) {
       return res.status(400).json({
         success: false,
@@ -821,31 +936,70 @@ export const updateElection = async (
     }
 
     /* --------------------------------------------------
+       CREATED BY SAFETY
+    -------------------------------------------------- */
+
+    if (
+      !election.createdBy &&
+      userId
+    ) {
+      election.createdBy =
+        userId;
+    }
+
+    /* --------------------------------------------------
        STATUS
     -------------------------------------------------- */
 
     if (election.isPublished) {
-      election.status =
+      /*
+       * Calculate current state based on
+       * the new dates.
+       */
+      const calculatedStatus =
         getElectionStatus(
           election
         );
+
+      if (
+        calculatedStatus ===
+        "CANCELLED"
+      ) {
+        election.status =
+          "CANCELLED";
+      } else {
+        election.status =
+          calculatedStatus;
+      }
     } else {
       election.status =
         "DRAFT";
     }
 
+    /* --------------------------------------------------
+       SAVE
+    -------------------------------------------------- */
+
     await election.save();
 
     /* --------------------------------------------------
-       UPDATE NOTIFICATION
+       CHECK CHANGES
     -------------------------------------------------- */
 
     const changed =
       oldTitle !== election.title ||
       oldStartDate.getTime() !==
-        election.startDate.getTime() ||
+        new Date(
+          election.startDate
+        ).getTime() ||
       oldEndDate.getTime() !==
-        election.endDate.getTime();
+        new Date(
+          election.endDate
+        ).getTime();
+
+    /* --------------------------------------------------
+       NOTIFY
+    -------------------------------------------------- */
 
     if (
       changed &&
@@ -854,7 +1008,8 @@ export const updateElection = async (
       await notifyUsers({
         title:
           "Election Updated",
-        message: `"${election.title}" has been updated. Please review the latest election details.`,
+        message:
+          `"${election.title}" has been updated. Please review the latest election details.`,
         type:
           "ELECTION_UPDATED",
         relatedElection:
@@ -866,11 +1021,22 @@ export const updateElection = async (
       });
     }
 
+    const electionData =
+      election.toObject({
+        virtuals: true,
+      });
+
+    electionData.currentState =
+      getElectionStatus(
+        election
+      );
+
     return res.status(200).json({
       success: true,
       message:
         "Election updated successfully.",
-      election,
+      election:
+        electionData,
     });
   } catch (error) {
     console.error(
@@ -882,6 +1048,10 @@ export const updateElection = async (
       success: false,
       message:
         "Failed to update election.",
+      error:
+        process.env.NODE_ENV === "development"
+          ? error.message
+          : undefined,
     });
   }
 };
@@ -898,6 +1068,19 @@ export const publishElection = async (
   try {
     const { id } = req.params;
 
+    const userId = getUserId(req);
+
+    if (
+      !userId ||
+      !isValidObjectId(userId)
+    ) {
+      return res.status(401).json({
+        success: false,
+        message:
+          "Authentication required.",
+      });
+    }
+
     if (!isValidObjectId(id)) {
       return res.status(400).json({
         success: false,
@@ -917,15 +1100,43 @@ export const publishElection = async (
       });
     }
 
+    /* --------------------------------------------------
+       REPAIR OLD ELECTION
+    -------------------------------------------------- */
+
+    if (!election.createdBy) {
+      election.createdBy =
+        userId;
+    }
+
+    /* --------------------------------------------------
+       CHECK STATUS
+    -------------------------------------------------- */
+
+    const currentStatus =
+      getElectionStatus(
+        election
+      );
+
     if (
-      ["COMPLETED", "CANCELLED"].includes(
-        election.status
-      )
+      currentStatus ===
+      "COMPLETED"
     ) {
       return res.status(400).json({
         success: false,
         message:
-          "This election cannot be published.",
+          "A completed election cannot be published.",
+      });
+    }
+
+    if (
+      currentStatus ===
+      "CANCELLED"
+    ) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "A cancelled election cannot be published.",
       });
     }
 
@@ -938,31 +1149,29 @@ export const publishElection = async (
     }
 
     /* --------------------------------------------------
-       CANDIDATES
+       NO CANDIDATE REQUIREMENT
     -------------------------------------------------- */
 
-    const candidateCount =
-      await Candidate.countDocuments({
-        election:
-          election._id,
-        isActive: true,
-      });
-
-    if (candidateCount < 2) {
-      return res.status(400).json({
-        success: false,
-        message:
-          "At least two active candidates are required before publishing an election.",
-      });
-    }
-
-    /* --------------------------------------------------
-       PUBLISH
-    -------------------------------------------------- */
+    /*
+     * IMPORTANT:
+     *
+     * There is intentionally NO candidate-count
+     * validation here.
+     *
+     * Election can be published with:
+     * - 0 candidates
+     * - 1 candidate
+     * - multiple candidates
+     *
+     * Candidates can be added separately.
+     */
 
     election.isPublished =
       true;
 
+    /*
+     * Calculate state after publishing.
+     */
     election.status =
       getElectionStatus(
         election
@@ -977,7 +1186,8 @@ export const publishElection = async (
     await notifyUsers({
       title:
         "New Election Available",
-      message: `"${election.title}" is now published. Please review the election details and voting schedule.`,
+      message:
+        `"${election.title}" is now published. Please review the election details and voting schedule.`,
       type:
         "NEW_ELECTION",
       relatedElection:
@@ -988,11 +1198,22 @@ export const publishElection = async (
         "HIGH",
     });
 
+    const electionData =
+      election.toObject({
+        virtuals: true,
+      });
+
+    electionData.currentState =
+      getElectionStatus(
+        election
+      );
+
     return res.status(200).json({
       success: true,
       message:
         "Election published successfully.",
-      election,
+      election:
+        electionData,
     });
   } catch (error) {
     console.error(
@@ -1004,6 +1225,10 @@ export const publishElection = async (
       success: false,
       message:
         "Failed to publish election.",
+      error:
+        process.env.NODE_ENV === "development"
+          ? error.message
+          : undefined,
     });
   }
 };
@@ -1020,6 +1245,19 @@ export const cancelElection = async (
   try {
     const { id } = req.params;
 
+    const userId = getUserId(req);
+
+    if (
+      !userId ||
+      !isValidObjectId(userId)
+    ) {
+      return res.status(401).json({
+        success: false,
+        message:
+          "Authentication required.",
+      });
+    }
+
     if (!isValidObjectId(id)) {
       return res.status(400).json({
         success: false,
@@ -1039,10 +1277,23 @@ export const cancelElection = async (
       });
     }
 
+    /*
+     * Repair old elections that don't have
+     * createdBy before save().
+     */
+    if (!election.createdBy) {
+      election.createdBy =
+        userId;
+    }
+
     const currentStatus =
       getElectionStatus(
         election
       );
+
+    /* --------------------------------------------------
+       COMPLETED
+    -------------------------------------------------- */
 
     if (
       currentStatus ===
@@ -1054,6 +1305,10 @@ export const cancelElection = async (
           "Completed elections cannot be cancelled.",
       });
     }
+
+    /* --------------------------------------------------
+       ALREADY CANCELLED
+    -------------------------------------------------- */
 
     if (
       currentStatus ===
@@ -1079,13 +1334,14 @@ export const cancelElection = async (
     await election.save();
 
     /* --------------------------------------------------
-       NOTIFY USERS
+       NOTIFY
     -------------------------------------------------- */
 
     await notifyUsers({
       title:
         "Election Cancelled",
-      message: `"${election.title}" has been cancelled. Voting for this election is no longer available.`,
+      message:
+        `"${election.title}" has been cancelled. Voting for this election is no longer available.`,
       type:
         "ELECTION_CANCELLED",
       relatedElection:
@@ -1096,11 +1352,20 @@ export const cancelElection = async (
         "URGENT",
     });
 
+    const electionData =
+      election.toObject({
+        virtuals: true,
+      });
+
+    electionData.currentState =
+      "CANCELLED";
+
     return res.status(200).json({
       success: true,
       message:
         "Election cancelled successfully.",
-      election,
+      election:
+        electionData,
     });
   } catch (error) {
     console.error(
@@ -1112,6 +1377,10 @@ export const cancelElection = async (
       success: false,
       message:
         "Failed to cancel election.",
+      error:
+        process.env.NODE_ENV === "development"
+          ? error.message
+          : undefined,
     });
   }
 };
@@ -1153,7 +1422,7 @@ export const deleteElection = async (
       );
 
     /* --------------------------------------------------
-       NEVER DELETE LIVE
+       LIVE ELECTION
     -------------------------------------------------- */
 
     if (
@@ -1167,7 +1436,7 @@ export const deleteElection = async (
     }
 
     /* --------------------------------------------------
-       CHECK VOTES
+       CHECK RECORDED VOTES
     -------------------------------------------------- */
 
     const voteCount =
@@ -1176,11 +1445,19 @@ export const deleteElection = async (
           election._id,
       });
 
+    /*
+     * Never remove an election that already
+     * has real voting records.
+     *
+     * This protects election history and
+     * prevents broken vote references.
+     */
     if (voteCount > 0) {
       return res.status(400).json({
         success: false,
         message:
           "An election with recorded votes cannot be deleted.",
+        voteCount,
       });
     }
 
@@ -1225,6 +1502,10 @@ export const deleteElection = async (
       success: false,
       message:
         "Failed to delete election.",
+      error:
+        process.env.NODE_ENV === "development"
+          ? error.message
+          : undefined,
     });
   }
 };
