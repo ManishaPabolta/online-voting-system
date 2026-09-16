@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import toast from "react-hot-toast";
 import {
@@ -16,8 +16,10 @@ import {
   Plus,
   RefreshCw,
   Save,
+  Search,
   ShieldCheck,
   Trash2,
+  UserCheck,
   UserPlus,
   Users,
   X,
@@ -39,6 +41,8 @@ import {
   updateCandidate,
   deleteCandidate,
 } from "../api/candidateApi";
+
+import API from "../api/axios";
 
 /* =========================================================
    CONSTANTS
@@ -77,7 +81,17 @@ const ELECTION_TYPES = [
   "OTHER",
 ];
 
-const LOCKED_STATUSES = ["LIVE", "COMPLETED", "CANCELLED"];
+const LOCKED_STATUSES = [
+  "LIVE",
+  "COMPLETED",
+  "CANCELLED",
+];
+
+const VERIFICATION_STATUSES = [
+  "PENDING",
+  "VERIFIED",
+  "REJECTED",
+];
 
 const STATUS_STYLES = {
   DRAFT: {
@@ -156,6 +170,24 @@ const getCandidatesFromResponse = (response) => {
   return [];
 };
 
+const getUsersFromResponse = (response) => {
+  const data = response?.data || response;
+
+  if (Array.isArray(data)) {
+    return data;
+  }
+
+  if (Array.isArray(data?.users)) {
+    return data.users;
+  }
+
+  if (Array.isArray(data?.data)) {
+    return data.data;
+  }
+
+  return [];
+};
+
 const formatDate = (date) => {
   if (!date) return "Not set";
 
@@ -169,6 +201,24 @@ const formatDate = (date) => {
     day: "numeric",
     month: "short",
     year: "numeric",
+  });
+};
+
+const formatDateTime = (date) => {
+  if (!date) return "Not set";
+
+  const parsedDate = new Date(date);
+
+  if (Number.isNaN(parsedDate.getTime())) {
+    return "Invalid date";
+  }
+
+  return parsedDate.toLocaleString("en-IN", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
   });
 };
 
@@ -203,6 +253,47 @@ const isElectionLocked = (election) => {
   return LOCKED_STATUSES.includes(
     election?.status?.toUpperCase()
   );
+};
+
+const getVerificationStatus = (user) => {
+  const status =
+    user?.voterVerificationStatus ||
+    user?.voterProfile?.verificationStatus ||
+    "NOT_SUBMITTED";
+
+  return String(status).toUpperCase();
+};
+
+const getVerificationStyle = (status) => {
+  switch (status) {
+    case "VERIFIED":
+      return {
+        label: "Verified",
+        className:
+          "border-emerald-400/20 bg-emerald-500/10 text-emerald-300",
+      };
+
+    case "REJECTED":
+      return {
+        label: "Rejected",
+        className:
+          "border-red-400/20 bg-red-500/10 text-red-300",
+      };
+
+    case "PENDING":
+      return {
+        label: "Pending",
+        className:
+          "border-amber-400/20 bg-amber-500/10 text-amber-300",
+      };
+
+    default:
+      return {
+        label: "Not Submitted",
+        className:
+          "border-slate-400/20 bg-slate-500/10 text-slate-400",
+      };
+  }
 };
 
 /* =========================================================
@@ -349,7 +440,6 @@ const CandidateForm = ({
           }
           className="space-y-5"
         >
-          {/* Name + Position */}
           <div className="grid gap-5 md:grid-cols-2">
             <div>
               <FieldLabel required>
@@ -380,7 +470,6 @@ const CandidateForm = ({
             </div>
           </div>
 
-          {/* Photo + Party */}
           <div className="grid gap-5 md:grid-cols-2">
             <div>
               <FieldLabel>
@@ -420,7 +509,6 @@ const CandidateForm = ({
             </div>
           </div>
 
-          {/* Symbol */}
           <div>
             <FieldLabel>
               Symbol
@@ -435,7 +523,6 @@ const CandidateForm = ({
             />
           </div>
 
-          {/* Manifesto */}
           <div>
             <FieldLabel>
               Manifesto
@@ -451,7 +538,6 @@ const CandidateForm = ({
             />
           </div>
 
-          {/* Biography + Experience */}
           <div className="grid gap-5 md:grid-cols-2">
             <div>
               <FieldLabel>
@@ -484,7 +570,6 @@ const CandidateForm = ({
             </div>
           </div>
 
-          {/* Active */}
           <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-white/10 bg-white/[0.025] p-4">
             <input
               type="checkbox"
@@ -506,7 +591,6 @@ const CandidateForm = ({
             </div>
           </label>
 
-          {/* Buttons */}
           <div className="flex flex-col gap-3 pt-2 sm:flex-row sm:justify-end">
             <button
               type="button"
@@ -581,7 +665,6 @@ const CandidateItem = ({
       className="rounded-2xl border border-white/10 bg-slate-950/40 p-4"
     >
       <div className="flex items-start gap-4">
-        {/* Photo */}
         <div className="h-14 w-14 shrink-0 overflow-hidden rounded-2xl border border-white/10 bg-white/5">
           {candidate?.photo ? (
             <img
@@ -600,7 +683,6 @@ const CandidateItem = ({
           )}
         </div>
 
-        {/* Details */}
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <h5 className="break-words font-bold text-white">
@@ -634,7 +716,6 @@ const CandidateItem = ({
           )}
         </div>
 
-        {/* Actions */}
         {!readOnly && (
           <div className="flex shrink-0 gap-2">
             <button
@@ -667,7 +748,6 @@ const CandidateItem = ({
         )}
       </div>
 
-      {/* Extra information */}
       {(candidate?.manifesto ||
         candidate?.biography ||
         candidate?.experience ||
@@ -727,11 +807,327 @@ const CandidateItem = ({
 };
 
 /* =========================================================
+   VOTER VERIFICATION CARD
+========================================================= */
+
+const VoterVerificationCard = ({
+  user,
+  onVerificationChange,
+  actionId,
+}) => {
+  const profile = user?.voterProfile;
+
+  const status = getVerificationStatus(user);
+  const statusStyle =
+    getVerificationStyle(status);
+
+  const userName =
+    profile?.name ||
+    user?.name ||
+    "Unnamed User";
+
+  const email =
+    user?.email || "No email available";
+
+  const voterId =
+    profile?.voterId || "Not assigned";
+
+  const isComplete =
+    profile?.isComplete === true ||
+    user?.voterProfileComplete === true;
+
+  const isEligible =
+    profile?.isEligible === true ||
+    user?.voterEligible === true;
+
+  const currentAction =
+    actionId?.startsWith(`${user?._id}-`)
+      ? actionId
+      : null;
+
+  const isVerifying =
+    currentAction ===
+    `${user?._id}-VERIFIED`;
+
+  const isRejecting =
+    currentAction ===
+    `${user?._id}-REJECTED`;
+
+  const isPending =
+    currentAction ===
+    `${user?._id}-PENDING`;
+
+  return (
+    <motion.div
+      layout
+      initial={{
+        opacity: 0,
+        y: 12,
+      }}
+      animate={{
+        opacity: 1,
+        y: 0,
+      }}
+      className="rounded-2xl border border-white/10 bg-slate-950/40 p-5 transition hover:border-emerald-400/20"
+    >
+      {/* Header */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex min-w-0 items-start gap-4">
+          {/* Avatar */}
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-emerald-400/15 bg-emerald-500/10 text-sm font-bold text-emerald-300">
+            {profile?.profilePhoto ? (
+              <img
+                src={profile.profilePhoto}
+                alt={userName}
+                className="h-full w-full object-cover"
+              />
+            ) : (
+              userName
+                .charAt(0)
+                .toUpperCase()
+            )}
+          </div>
+
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <h3 className="break-words text-base font-bold text-white">
+                {userName}
+              </h3>
+
+              <span
+                className={`rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase ${statusStyle.className}`}
+              >
+                {statusStyle.label}
+              </span>
+            </div>
+
+            <p className="mt-1 break-all text-xs text-slate-500">
+              {email}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Profile details */}
+      <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="rounded-xl border border-white/5 bg-white/[0.025] p-3">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-600">
+            Voter ID
+          </p>
+
+          <p className="mt-1 break-all text-sm font-semibold text-slate-200">
+            {voterId}
+          </p>
+        </div>
+
+        <div className="rounded-xl border border-white/5 bg-white/[0.025] p-3">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-600">
+            Profile
+          </p>
+
+          <p
+            className={`mt-1 text-sm font-semibold ${
+              isComplete
+                ? "text-emerald-300"
+                : "text-amber-300"
+            }`}
+          >
+            {isComplete
+              ? "Complete"
+              : "Incomplete"}
+          </p>
+        </div>
+
+        <div className="rounded-xl border border-white/5 bg-white/[0.025] p-3">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-600">
+            Eligibility
+          </p>
+
+          <p
+            className={`mt-1 text-sm font-semibold ${
+              isEligible
+                ? "text-emerald-300"
+                : "text-slate-400"
+            }`}
+          >
+            {isEligible
+              ? "Eligible"
+              : "Not Eligible"}
+          </p>
+        </div>
+
+        <div className="rounded-xl border border-white/5 bg-white/[0.025] p-3">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-600">
+            Verification
+          </p>
+
+          <p className="mt-1 text-sm font-semibold text-slate-200">
+            {statusStyle.label}
+          </p>
+        </div>
+      </div>
+
+      {/* Additional profile information */}
+      {profile && (
+        <div className="mt-4 grid gap-3 border-t border-white/5 pt-4 sm:grid-cols-2 lg:grid-cols-4">
+          {profile.age !== undefined &&
+            profile.age !== null && (
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-600">
+                  Age
+                </p>
+
+                <p className="mt-1 text-xs text-slate-400">
+                  {profile.age}
+                </p>
+              </div>
+            )}
+
+          {profile.gender && (
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-600">
+                Gender
+              </p>
+
+              <p className="mt-1 text-xs text-slate-400">
+                {profile.gender}
+              </p>
+            </div>
+          )}
+
+          {profile.city && (
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-600">
+                City
+              </p>
+
+              <p className="mt-1 text-xs text-slate-400">
+                {profile.city}
+              </p>
+            </div>
+          )}
+
+          {profile.state && (
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-600">
+                State
+              </p>
+
+              <p className="mt-1 text-xs text-slate-400">
+                {profile.state}
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Verification warning */}
+      {!isComplete && (
+        <div className="mt-4 flex items-start gap-3 rounded-xl border border-amber-400/15 bg-amber-500/[0.05] p-3">
+          <Info
+            size={16}
+            className="mt-0.5 shrink-0 text-amber-400"
+          />
+
+          <p className="text-xs leading-5 text-amber-300/80">
+            This voter profile is incomplete. The
+            backend will not allow verification until
+            the profile is complete.
+          </p>
+        </div>
+      )}
+
+      {/* Actions */}
+      <div className="mt-5 flex flex-col gap-2 border-t border-white/5 pt-4 sm:flex-row">
+        <button
+          type="button"
+          onClick={() =>
+            onVerificationChange(
+              user,
+              "VERIFIED"
+            )
+          }
+          disabled={
+            !isComplete ||
+            Boolean(currentAction)
+          }
+          className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-500/10 px-4 py-2.5 text-xs font-bold text-emerald-300 transition hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          {isVerifying ? (
+            <Loader2
+              size={15}
+              className="animate-spin"
+            />
+          ) : (
+            <CheckCircle2 size={15} />
+          )}
+
+          {isVerifying
+            ? "Verifying..."
+            : "Verify Voter"}
+        </button>
+
+        <button
+          type="button"
+          onClick={() =>
+            onVerificationChange(
+              user,
+              "REJECTED"
+            )
+          }
+          disabled={Boolean(currentAction)}
+          className="inline-flex items-center justify-center gap-2 rounded-xl bg-red-500/10 px-4 py-2.5 text-xs font-bold text-red-300 transition hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          {isRejecting ? (
+            <Loader2
+              size={15}
+              className="animate-spin"
+            />
+          ) : (
+            <XCircle size={15} />
+          )}
+
+          {isRejecting
+            ? "Rejecting..."
+            : "Reject"}
+        </button>
+
+        <button
+          type="button"
+          onClick={() =>
+            onVerificationChange(
+              user,
+              "PENDING"
+            )
+          }
+          disabled={Boolean(currentAction)}
+          className="inline-flex items-center justify-center gap-2 rounded-xl bg-amber-500/10 px-4 py-2.5 text-xs font-bold text-amber-300 transition hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          {isPending ? (
+            <Loader2
+              size={15}
+              className="animate-spin"
+            />
+          ) : (
+            <Clock3 size={15} />
+          )}
+
+          {isPending
+            ? "Updating..."
+            : "Set Pending"}
+        </button>
+      </div>
+    </motion.div>
+  );
+};
+
+/* =========================================================
    MAIN COMPONENT
 ========================================================= */
 
 const ManageElections = () => {
-  const [elections, setElections] = useState([]);
+  const [elections, setElections] =
+    useState([]);
 
   const [loading, setLoading] =
     useState(true);
@@ -776,10 +1172,32 @@ const ManageElections = () => {
     useState("");
 
   /* =======================================================
-     LOAD DATA
+     VOTER VERIFICATION STATE
   ======================================================= */
 
-  const loadData = async () => {
+  const [users, setUsers] =
+    useState([]);
+
+  const [usersLoading, setUsersLoading] =
+    useState(true);
+
+  const [usersRefreshing, setUsersRefreshing] =
+    useState(false);
+
+  const [verificationActionId, setVerificationActionId] =
+    useState(null);
+
+  const [userSearch, setUserSearch] =
+    useState("");
+
+  const [verificationFilter, setVerificationFilter] =
+    useState("ALL");
+
+  /* =======================================================
+     LOAD ELECTION DATA
+  ======================================================= */
+
+  const loadElectionData = async () => {
     try {
       setLoading(true);
       setError("");
@@ -848,9 +1266,303 @@ const ManageElections = () => {
     }
   };
 
+  /* =======================================================
+     LOAD USERS
+  ======================================================= */
+
+  const loadUsers = async (
+    isRefresh = false
+  ) => {
+    try {
+      if (isRefresh) {
+        setUsersRefreshing(true);
+      } else {
+        setUsersLoading(true);
+      }
+
+      const response =
+        await API.get("/users");
+
+      const userData =
+        getUsersFromResponse(response);
+
+      setUsers(userData);
+    } catch (err) {
+      console.error(
+        "Failed to load users:",
+        err
+      );
+
+      setUsers([]);
+
+      if (err?.response?.status !== 429) {
+        toast.error(
+          getErrorMessage(err)
+        );
+      }
+    } finally {
+      setUsersLoading(false);
+      setUsersRefreshing(false);
+    }
+  };
+
   useEffect(() => {
-    loadData();
+    loadElectionData();
+    loadUsers();
   }, []);
+
+  /* =======================================================
+     REFRESH EVERYTHING
+  ======================================================= */
+
+  const refreshAll = async () => {
+    await Promise.all([
+      loadElectionData(),
+      loadUsers(true),
+    ]);
+
+    toast.success(
+      "Admin data refreshed."
+    );
+  };
+
+  /* =======================================================
+     FILTERED USERS
+  ======================================================= */
+
+  const filteredUsers = useMemo(() => {
+    const search =
+      userSearch
+        .trim()
+        .toLowerCase();
+
+    return users.filter((user) => {
+      const profile =
+        user?.voterProfile || {};
+
+      const status =
+        getVerificationStatus(user);
+
+      const name = String(
+        profile?.name ||
+          user?.name ||
+          ""
+      ).toLowerCase();
+
+      const email = String(
+        user?.email || ""
+      ).toLowerCase();
+
+      const voterId = String(
+        profile?.voterId || ""
+      ).toLowerCase();
+
+      const matchesSearch =
+        !search ||
+        name.includes(search) ||
+        email.includes(search) ||
+        voterId.includes(search);
+
+      const matchesStatus =
+        verificationFilter === "ALL" ||
+        status === verificationFilter;
+
+      return (
+        matchesSearch &&
+        matchesStatus
+      );
+    });
+  }, [
+    users,
+    userSearch,
+    verificationFilter,
+  ]);
+
+  /* =======================================================
+     USER VERIFICATION STATS
+  ======================================================= */
+
+  const verificationStats = useMemo(() => {
+    let pending = 0;
+    let verified = 0;
+    let rejected = 0;
+    let notSubmitted = 0;
+
+    users.forEach((user) => {
+      const status =
+        getVerificationStatus(user);
+
+      if (status === "PENDING") {
+        pending += 1;
+      } else if (
+        status === "VERIFIED"
+      ) {
+        verified += 1;
+      } else if (
+        status === "REJECTED"
+      ) {
+        rejected += 1;
+      } else {
+        notSubmitted += 1;
+      }
+    });
+
+    return {
+      total: users.length,
+      pending,
+      verified,
+      rejected,
+      notSubmitted,
+    };
+  }, [users]);
+
+  /* =======================================================
+     VOTER VERIFICATION
+  ======================================================= */
+
+  const handleVoterVerification = async (
+    user,
+    status
+  ) => {
+    const userId = user?._id;
+
+    if (!userId) {
+      toast.error(
+        "User ID is missing."
+      );
+      return;
+    }
+
+    const profile =
+      user?.voterProfile;
+
+    if (
+      status === "VERIFIED" &&
+      profile?.isComplete !== true &&
+      user?.voterProfileComplete !== true
+    ) {
+      toast.error(
+        "This voter profile is incomplete. Complete the profile before verification."
+      );
+      return;
+    }
+
+    const userName =
+      profile?.name ||
+      user?.name ||
+      user?.email ||
+      "this voter";
+
+    const actionText =
+      status === "VERIFIED"
+        ? "verify"
+        : status === "REJECTED"
+        ? "reject"
+        : "set this voter to pending";
+
+    const confirmed =
+      window.confirm(
+        `Are you sure you want to ${actionText} "${userName}"?`
+      );
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      setVerificationActionId(
+        `${userId}-${status}`
+      );
+
+      const response =
+        await API.patch(
+          `/users/${userId}/voter-verification`,
+          {
+            status,
+          }
+        );
+
+      const updatedProfile =
+        response?.data?.profile ||
+        response?.profile;
+
+      setUsers((previousUsers) =>
+        previousUsers.map(
+          (currentUser) => {
+            if (
+              currentUser?._id !==
+              userId
+            ) {
+              return currentUser;
+            }
+
+            return {
+              ...currentUser,
+
+              voterProfile:
+                updatedProfile
+                  ? {
+                      ...(currentUser.voterProfile ||
+                        {}),
+                      ...updatedProfile,
+                    }
+                  : {
+                      ...(currentUser.voterProfile ||
+                        {}),
+                      verificationStatus:
+                        status,
+                      isEligible:
+                        status ===
+                        "VERIFIED",
+                    },
+
+              voterVerificationStatus:
+                updatedProfile?.verificationStatus ||
+                status,
+
+              voterEligible:
+                updatedProfile?.isEligible ??
+                (status ===
+                  "VERIFIED"),
+            };
+          }
+        )
+      );
+
+      if (status === "VERIFIED") {
+        toast.success(
+          `${userName} has been verified successfully.`
+        );
+      } else if (
+        status === "REJECTED"
+      ) {
+        toast.success(
+          `${userName} has been rejected.`
+        );
+      } else {
+        toast.success(
+          `${userName} verification is now pending.`
+        );
+      }
+
+      /*
+       * Refresh from backend so the UI always
+       * reflects the real database state.
+       */
+      await loadUsers();
+    } catch (err) {
+      console.error(
+        "Voter verification error:",
+        err
+      );
+
+      toast.error(
+        getErrorMessage(err)
+      );
+    } finally {
+      setVerificationActionId(null);
+    }
+  };
 
   /* =======================================================
      ELECTION FORM
@@ -964,10 +1676,6 @@ const ManageElections = () => {
             ),
         });
 
-      /*
-       * Get newly created election ID
-       * from backend response.
-       */
       const createdElection =
         response?.election ||
         response?.data?.election ||
@@ -981,9 +1689,6 @@ const ManageElections = () => {
         "Election created successfully."
       );
 
-      /*
-       * Reset only the election form.
-       */
       setForm({
         ...INITIAL_ELECTION_FORM,
       });
@@ -991,16 +1696,8 @@ const ManageElections = () => {
       setShowForm(false);
       setEditId(null);
 
-      /*
-       * Refresh elections.
-       */
-      await loadData();
+      await loadElectionData();
 
-      /*
-       * IMPORTANT:
-       * Automatically open Candidate Management
-       * after election creation.
-       */
       if (createdElectionId) {
         setExpandedElection(
           createdElectionId
@@ -1028,11 +1725,6 @@ const ManageElections = () => {
           });
         }, 250);
       } else {
-        /*
-         * Fallback:
-         * if backend response doesn't contain
-         * election ID, find newest election.
-         */
         const refreshed =
           await getAllElections();
 
@@ -1048,10 +1740,12 @@ const ManageElections = () => {
               .sort(
                 (a, b) =>
                   new Date(
-                    b.createdAt || b.startDate
+                    b.createdAt ||
+                      b.startDate
                   ) -
                   new Date(
-                    a.createdAt || a.startDate
+                    a.createdAt ||
+                      a.startDate
                   )
               )[0];
 
@@ -1226,7 +1920,7 @@ const ManageElections = () => {
 
       resetElectionForm();
 
-      await loadData();
+      await loadElectionData();
     } catch (err) {
       console.error(
         "Update election error:",
@@ -1281,7 +1975,7 @@ const ManageElections = () => {
         setShowCandidateForm(null);
       }
 
-      await loadData();
+      await loadElectionData();
     } catch (err) {
       console.error(
         "Delete election error:",
@@ -1322,9 +2016,6 @@ const ManageElections = () => {
         "Election published successfully."
       );
 
-      /*
-       * Close candidate form after publishing.
-       */
       if (
         showCandidateForm ===
         election._id
@@ -1332,7 +2023,7 @@ const ManageElections = () => {
         setShowCandidateForm(null);
       }
 
-      await loadData();
+      await loadElectionData();
     } catch (err) {
       console.error(
         "Publish election error:",
@@ -1380,7 +2071,7 @@ const ManageElections = () => {
         setShowCandidateForm(null);
       }
 
-      await loadData();
+      await loadElectionData();
     } catch (err) {
       console.error(
         "Cancel election error:",
@@ -1575,12 +2266,6 @@ const ManageElections = () => {
         );
       }
 
-      /*
-       * Keep candidate management OPEN
-       * after adding a candidate.
-       * This allows admin to immediately
-       * add Candidate 2, Candidate 3, etc.
-       */
       setEditingCandidateId(null);
 
       setCandidateForm({
@@ -1595,7 +2280,7 @@ const ManageElections = () => {
         electionId
       );
 
-      await loadData();
+      await loadElectionData();
     } catch (err) {
       console.error(
         "Candidate save error:",
@@ -1624,10 +2309,6 @@ const ManageElections = () => {
           candidate?.election
       );
 
-    /*
-     * Candidate returned from backend may have
-     * populated election object.
-     */
     const electionId =
       typeof candidate?.election ===
       "object"
@@ -1673,7 +2354,7 @@ const ManageElections = () => {
         "Candidate deleted successfully."
       );
 
-      await loadData();
+      await loadElectionData();
     } catch (err) {
       console.error(
         "Delete candidate error:",
@@ -1702,10 +2383,6 @@ const ManageElections = () => {
           : electionId
     );
 
-    /*
-     * If closing the election,
-     * also close candidate form.
-     */
     if (
       expandedElection ===
       electionId
@@ -1739,37 +2416,44 @@ const ManageElections = () => {
           <div>
             <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1.5 text-xs font-semibold text-emerald-300">
               <ShieldCheck size={14} />
-              Election Management
+              Administration
             </div>
 
             <h1 className="text-3xl font-black tracking-tight sm:text-4xl">
-              Manage Elections
+              Admin Control Center
             </h1>
 
             <p className="mt-2 max-w-2xl text-sm text-slate-500 sm:text-base">
-              Create elections, add unlimited
-              candidates or voting options,
-              and manage the complete election
-              lifecycle.
+              Manage elections, candidates, voting
+              options and voter verification from one
+              place.
             </p>
           </div>
 
           <div className="flex flex-col gap-3 sm:flex-row">
             <button
               type="button"
-              onClick={loadData}
-              disabled={loading}
+              onClick={refreshAll}
+              disabled={
+                loading ||
+                usersRefreshing
+              }
               className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-semibold text-slate-300 transition hover:border-emerald-400/20 hover:bg-white/[0.07] disabled:opacity-50"
             >
               <RefreshCw
                 size={17}
                 className={
-                  loading
+                  loading ||
+                  usersRefreshing
                     ? "animate-spin"
                     : ""
                 }
               />
-              Refresh
+
+              {loading ||
+              usersRefreshing
+                ? "Refreshing..."
+                : "Refresh All"}
             </button>
 
             <button
@@ -1825,6 +2509,345 @@ const ManageElections = () => {
             </motion.div>
           )}
         </AnimatePresence>
+
+        {/* =================================================
+            VOTER VERIFICATION
+        ================================================== */}
+
+        <motion.section
+          initial={{
+            opacity: 0,
+            y: 20,
+          }}
+          animate={{
+            opacity: 1,
+            y: 0,
+          }}
+          transition={{
+            delay: 0.05,
+          }}
+          className="mb-10"
+        >
+          {/* Section header */}
+          <div className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <div className="mb-2 flex items-center gap-2">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/10">
+                  <UserCheck
+                    size={19}
+                    className="text-emerald-400"
+                  />
+                </div>
+
+                <div>
+                  <h2 className="text-xl font-bold text-white sm:text-2xl">
+                    Voter Verification
+                  </h2>
+
+                  <p className="mt-0.5 text-xs text-slate-600">
+                    Verify voter profiles before they
+                    can cast votes.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() =>
+                loadUsers(true)
+              }
+              disabled={usersRefreshing}
+              className="inline-flex w-fit items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-xs font-bold text-slate-300 transition hover:border-emerald-400/20 hover:bg-emerald-500/5 hover:text-emerald-300 disabled:opacity-50"
+            >
+              <RefreshCw
+                size={15}
+                className={
+                  usersRefreshing
+                    ? "animate-spin"
+                    : ""
+                }
+              />
+
+              Refresh Voters
+            </button>
+          </div>
+
+          {/* Stats */}
+          <div className="mb-5 grid grid-cols-2 gap-3 md:grid-cols-5">
+            <button
+              type="button"
+              onClick={() =>
+                setVerificationFilter(
+                  "ALL"
+                )
+              }
+              className={`rounded-2xl border p-4 text-left transition ${
+                verificationFilter ===
+                "ALL"
+                  ? "border-emerald-400/30 bg-emerald-500/10"
+                  : "border-white/10 bg-white/[0.03] hover:border-white/15"
+              }`}
+            >
+              <Users
+                size={18}
+                className="text-slate-400"
+              />
+
+              <p className="mt-3 text-xl font-black text-white">
+                {verificationStats.total}
+              </p>
+
+              <p className="text-xs text-slate-500">
+                All Users
+              </p>
+            </button>
+
+            <button
+              type="button"
+              onClick={() =>
+                setVerificationFilter(
+                  "PENDING"
+                )
+              }
+              className={`rounded-2xl border p-4 text-left transition ${
+                verificationFilter ===
+                "PENDING"
+                  ? "border-amber-400/30 bg-amber-500/10"
+                  : "border-white/10 bg-white/[0.03] hover:border-white/15"
+              }`}
+            >
+              <Clock3
+                size={18}
+                className="text-amber-400"
+              />
+
+              <p className="mt-3 text-xl font-black text-white">
+                {verificationStats.pending}
+              </p>
+
+              <p className="text-xs text-slate-500">
+                Pending
+              </p>
+            </button>
+
+            <button
+              type="button"
+              onClick={() =>
+                setVerificationFilter(
+                  "VERIFIED"
+                )
+              }
+              className={`rounded-2xl border p-4 text-left transition ${
+                verificationFilter ===
+                "VERIFIED"
+                  ? "border-emerald-400/30 bg-emerald-500/10"
+                  : "border-white/10 bg-white/[0.03] hover:border-white/15"
+              }`}
+            >
+              <CheckCircle2
+                size={18}
+                className="text-emerald-400"
+              />
+
+              <p className="mt-3 text-xl font-black text-white">
+                {verificationStats.verified}
+              </p>
+
+              <p className="text-xs text-slate-500">
+                Verified
+              </p>
+            </button>
+
+            <button
+              type="button"
+              onClick={() =>
+                setVerificationFilter(
+                  "REJECTED"
+                )
+              }
+              className={`rounded-2xl border p-4 text-left transition ${
+                verificationFilter ===
+                "REJECTED"
+                  ? "border-red-400/30 bg-red-500/10"
+                  : "border-white/10 bg-white/[0.03] hover:border-white/15"
+              }`}
+            >
+              <XCircle
+                size={18}
+                className="text-red-400"
+              />
+
+              <p className="mt-3 text-xl font-black text-white">
+                {verificationStats.rejected}
+              </p>
+
+              <p className="text-xs text-slate-500">
+                Rejected
+              </p>
+            </button>
+
+            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+              <ShieldCheck
+                size={18}
+                className="text-teal-400"
+              />
+
+              <p className="mt-3 text-xl font-black text-white">
+                {verificationStats.notSubmitted}
+              </p>
+
+              <p className="text-xs text-slate-500">
+                Not Submitted
+              </p>
+            </div>
+          </div>
+
+          {/* Search */}
+          <div className="mb-5 flex flex-col gap-3 md:flex-row">
+            <div className="relative flex-1">
+              <Search
+                size={17}
+                className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-600"
+              />
+
+              <input
+                type="search"
+                value={userSearch}
+                onChange={(event) =>
+                  setUserSearch(
+                    event.target.value
+                  )
+                }
+                placeholder="Search by name, email or voter ID..."
+                className="w-full rounded-xl border border-white/10 bg-white/[0.04] py-3 pl-11 pr-4 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-emerald-400/30 focus:ring-2 focus:ring-emerald-500/10"
+              />
+            </div>
+
+            <div className="relative">
+              <select
+                value={
+                  verificationFilter
+                }
+                onChange={(event) =>
+                  setVerificationFilter(
+                    event.target.value
+                  )
+                }
+                className="w-full appearance-none rounded-xl border border-white/10 bg-slate-900 px-4 py-3 pr-10 text-sm font-medium text-slate-300 outline-none focus:border-emerald-400/30 md:w-52"
+              >
+                <option value="ALL">
+                  All Statuses
+                </option>
+
+                {VERIFICATION_STATUSES.map(
+                  (status) => (
+                    <option
+                      key={status}
+                      value={status}
+                    >
+                      {status}
+                    </option>
+                  )
+                )}
+              </select>
+
+              <ChevronDown
+                size={16}
+                className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-600"
+              />
+            </div>
+          </div>
+
+          {/* Users */}
+          {usersLoading ? (
+            <div className="flex min-h-[280px] items-center justify-center rounded-3xl border border-white/10 bg-white/[0.03]">
+              <div className="text-center">
+                <Loader2
+                  size={32}
+                  className="mx-auto animate-spin text-emerald-400"
+                />
+
+                <p className="mt-3 text-sm text-slate-500">
+                  Loading voter profiles...
+                </p>
+              </div>
+            </div>
+          ) : filteredUsers.length === 0 ? (
+            <div className="rounded-3xl border border-dashed border-white/10 bg-white/[0.02] p-10 text-center">
+              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-500/10 text-emerald-400">
+                <Users size={25} />
+              </div>
+
+              <h3 className="mt-4 font-bold text-white">
+                No voters found
+              </h3>
+
+              <p className="mt-2 text-sm text-slate-600">
+                No users match the selected search or
+                verification status.
+              </p>
+            </div>
+          ) : (
+            <div className="grid gap-4">
+              <AnimatePresence>
+                {filteredUsers.map(
+                  (user) => (
+                    <VoterVerificationCard
+                      key={user._id}
+                      user={user}
+                      actionId={
+                        verificationActionId
+                      }
+                      onVerificationChange={
+                        handleVoterVerification
+                      }
+                    />
+                  )
+                )}
+              </AnimatePresence>
+            </div>
+          )}
+        </motion.section>
+
+        {/* =================================================
+            DIVIDER
+        ================================================== */}
+
+        <div className="mb-10 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+
+        {/* =================================================
+            ELECTION MANAGEMENT HEADER
+        ================================================== */}
+
+        <motion.div
+          initial={{
+            opacity: 0,
+            y: 20,
+          }}
+          animate={{
+            opacity: 1,
+            y: 0,
+          }}
+          className="mb-8 flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between"
+        >
+          <div>
+            <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1.5 text-xs font-semibold text-emerald-300">
+              <FileText size={14} />
+              Election Management
+            </div>
+
+            <h2 className="text-2xl font-black tracking-tight sm:text-3xl">
+              Manage Elections
+            </h2>
+
+            <p className="mt-2 max-w-2xl text-sm text-slate-500">
+              Create elections, add unlimited
+              candidates or voting options, and manage
+              the complete election lifecycle.
+            </p>
+          </div>
+        </motion.div>
 
         {/* =================================================
             CREATE / UPDATE ELECTION FORM
@@ -1895,7 +2918,6 @@ const ManageElections = () => {
                   }
                   className="space-y-5"
                 >
-                  {/* Title */}
                   <div>
                     <FieldLabel required>
                       Election Title
@@ -1912,7 +2934,6 @@ const ManageElections = () => {
                     />
                   </div>
 
-                  {/* Election Type */}
                   <div>
                     <FieldLabel required>
                       Election Type
@@ -1950,7 +2971,6 @@ const ManageElections = () => {
                     </div>
                   </div>
 
-                  {/* Description */}
                   <div>
                     <FieldLabel>
                       Description
@@ -1970,7 +2990,6 @@ const ManageElections = () => {
                     />
                   </div>
 
-                  {/* Dates */}
                   <div className="grid gap-5 md:grid-cols-2">
                     <div>
                       <FieldLabel required>
@@ -2025,7 +3044,6 @@ const ManageElections = () => {
                     </div>
                   </div>
 
-                  {/* Banner */}
                   <div>
                     <FieldLabel>
                       Banner Image URL
@@ -2045,7 +3063,6 @@ const ManageElections = () => {
                     />
                   </div>
 
-                  {/* Instructions */}
                   <div>
                     <FieldLabel>
                       Voting Instructions
@@ -2065,7 +3082,6 @@ const ManageElections = () => {
                     />
                   </div>
 
-                  {/* Results setting */}
                   <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-white/10 bg-white/[0.025] p-4">
                     <input
                       type="checkbox"
@@ -2088,13 +3104,12 @@ const ManageElections = () => {
 
                       <p className="mt-1 text-xs leading-5 text-slate-500">
                         This setting controls whether
-                        results can be shown before
-                        the election ends.
+                        results can be shown before the
+                        election ends.
                       </p>
                     </div>
                   </label>
 
-                  {/* Candidate information */}
                   {!editId && (
                     <div className="flex gap-3 rounded-2xl border border-teal-400/15 bg-teal-500/[0.05] p-4">
                       <Info
@@ -2111,14 +3126,11 @@ const ManageElections = () => {
                           Once this election is created,
                           the Candidate / Voting Options
                           section will open automatically.
-                          You can then add any number of
-                          candidates.
                         </p>
                       </div>
                     </div>
                   )}
 
-                  {/* Buttons */}
                   <div className="flex flex-col gap-3 pt-2 sm:flex-row sm:justify-end">
                     <button
                       type="button"
@@ -2161,7 +3173,7 @@ const ManageElections = () => {
         </AnimatePresence>
 
         {/* =================================================
-            LIST HEADER
+            ELECTION LIST HEADER
         ================================================== */}
 
         <div className="mb-5 flex items-center justify-between">
@@ -2181,7 +3193,7 @@ const ManageElections = () => {
         </div>
 
         {/* =================================================
-            LOADING
+            ELECTION LOADING
         ================================================== */}
 
         {loading ? (
@@ -2198,10 +3210,6 @@ const ManageElections = () => {
             </div>
           </div>
         ) : elections.length === 0 ? (
-          /* =================================================
-             EMPTY
-          ================================================== */
-
           <motion.div
             initial={{
               opacity: 0,
@@ -2222,8 +3230,8 @@ const ManageElections = () => {
             </h3>
 
             <p className="mt-2 max-w-md text-sm text-slate-500">
-              Create your first election to
-              start managing the voting process.
+              Create your first election to start
+              managing the voting process.
             </p>
 
             <button
@@ -2236,10 +3244,6 @@ const ManageElections = () => {
             </button>
           </motion.div>
         ) : (
-          /* =================================================
-             ELECTION LIST
-          ================================================== */
-
           <div className="grid gap-5">
             {elections.map(
               (election, index) => {
@@ -2286,10 +3290,7 @@ const ManageElections = () => {
                         : "border-white/10 hover:border-emerald-400/20"
                     }`}
                   >
-                    {/* =================================================
-                        ELECTION CARD
-                    ================================================== */}
-
+                    {/* Election Card */}
                     <div className="p-5 sm:p-6">
                       <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
                         <div className="min-w-0 flex-1">
@@ -2319,7 +3320,6 @@ const ManageElections = () => {
                           </div>
                         </div>
 
-                        {/* Published */}
                         <div className="shrink-0">
                           <div className="flex items-center gap-2 rounded-xl border border-white/5 bg-slate-950/30 px-3 py-2">
                             <span
@@ -2354,6 +3354,12 @@ const ManageElections = () => {
                               election.startDate
                             )}
                           </p>
+
+                          <p className="mt-1 text-xs text-slate-600">
+                            {formatDateTime(
+                              election.startDate
+                            )}
+                          </p>
                         </div>
 
                         <div className="rounded-2xl border border-white/5 bg-slate-950/40 p-4">
@@ -2364,6 +3370,12 @@ const ManageElections = () => {
 
                           <p className="mt-2 text-sm font-semibold text-slate-200">
                             {formatDate(
+                              election.endDate
+                            )}
+                          </p>
+
+                          <p className="mt-1 text-xs text-slate-600">
+                            {formatDateTime(
                               election.endDate
                             )}
                           </p>
@@ -2403,10 +3415,7 @@ const ManageElections = () => {
                       </div>
                     </div>
 
-                    {/* =================================================
-                        CANDIDATE MANAGEMENT
-                    ================================================== */}
-
+                    {/* Candidate Management */}
                     <div className="border-t border-white/10 bg-slate-950/20">
                       <button
                         type="button"
@@ -2472,7 +3481,6 @@ const ManageElections = () => {
                             className="overflow-hidden"
                           >
                             <div className="border-t border-white/5 p-5 sm:p-6">
-                              {/* Candidate Header */}
                               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                                 <div>
                                   <h4 className="font-bold text-white">
@@ -2509,7 +3517,6 @@ const ManageElections = () => {
                                 )}
                               </div>
 
-                              {/* Candidate Form */}
                               <AnimatePresence>
                                 {showCandidateForm ===
                                   election._id && (
@@ -2539,7 +3546,6 @@ const ManageElections = () => {
                                 )}
                               </AnimatePresence>
 
-                              {/* Candidate List */}
                               {candidates.length ===
                               0 ? (
                                 <div className="mt-5 rounded-2xl border border-dashed border-white/10 bg-white/[0.015] p-8 text-center">
@@ -2557,10 +3563,9 @@ const ManageElections = () => {
                                     <>
                                       <p className="mt-1 text-xs text-slate-600">
                                         Add the first
-                                        candidate /
-                                        voting option
-                                        using the button
-                                        above.
+                                        candidate / voting
+                                        option using the
+                                        button above.
                                       </p>
 
                                       <button
@@ -2624,13 +3629,9 @@ const ManageElections = () => {
                       </AnimatePresence>
                     </div>
 
-                    {/* =================================================
-                        ELECTION ACTIONS
-                    ================================================== */}
-
+                    {/* Election Actions */}
                     <div className="border-t border-white/10 bg-slate-950/30 p-4">
                       <div className="flex flex-wrap gap-2">
-                        {/* Edit */}
                         {!isLocked && (
                           <button
                             type="button"
@@ -2651,7 +3652,6 @@ const ManageElections = () => {
                           </button>
                         )}
 
-                        {/* Publish */}
                         {election.status ===
                           "DRAFT" && (
                           <button
@@ -2681,7 +3681,6 @@ const ManageElections = () => {
                           </button>
                         )}
 
-                        {/* Cancel */}
                         {[
                           "DRAFT",
                           "UPCOMING",
@@ -2708,7 +3707,6 @@ const ManageElections = () => {
                           </button>
                         )}
 
-                        {/* Delete */}
                         <button
                           type="button"
                           onClick={() =>
