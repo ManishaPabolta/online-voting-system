@@ -4,9 +4,14 @@ import crypto from "crypto";
 
 import User from "../models/User.js";
 import generateOTP from "../utils/generateOTP.js";
+
 import {
   sendEmail,
 } from "../services/mailService.js";
+
+import {
+  createOTP,
+} from "../services/otpService.js";
 
 // ======================================================
 // CONSTANTS
@@ -57,11 +62,16 @@ const generateVoterId = () => {
 // GENERATE VOTING PASSWORD
 // ======================================================
 //
-// Separate from normal login password.
+// This is different from the normal login password.
 //
-// Plain voting password is sent ONLY through email.
-// Only bcrypt hash is stored in MongoDB.
+// Normal password:
+// - Used for login
 //
+// Voting password:
+// - Used before casting a vote
+//
+// Only the bcrypt hash of votingPassword is stored.
+// Plain voting password is sent through email.
 // ======================================================
 
 const generateVotingPassword = () => {
@@ -96,6 +106,7 @@ const generateAccessToken = (user) => {
     }
   );
 };
+
 // ======================================================
 // SEND REGISTRATION EMAIL
 // ======================================================
@@ -140,298 +151,535 @@ Online Voting System
 `.trim(),
 
     html: `
-      <!DOCTYPE html>
+<!DOCTYPE html>
 
-      <html>
+<html>
 
-      <head>
-        <meta charset="UTF-8" />
+<head>
+  <meta charset="UTF-8" />
 
-        <meta
-          name="viewport"
-          content="width=device-width, initial-scale=1.0"
-        />
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+  />
 
-        <title>
-          Online Voting System
-        </title>
-      </head>
+  <title>
+    Online Voting System
+  </title>
+</head>
 
-      <body
+<body
+  style="
+    margin:0;
+    padding:0;
+    background:#f3f7f5;
+    font-family:Arial,Helvetica,sans-serif;
+    color:#1f2937;
+  "
+>
+
+  <div
+    style="
+      max-width:620px;
+      margin:30px auto;
+      padding:20px;
+    "
+  >
+
+    <div
+      style="
+        background:#ffffff;
+        border-radius:18px;
+        padding:35px;
+        box-shadow:0 8px 30px rgba(0,0,0,0.08);
+      "
+    >
+
+      <!-- HEADER -->
+
+      <div
         style="
-          margin:0;
-          padding:0;
-          background:#f3f7f5;
-          font-family:Arial,Helvetica,sans-serif;
-          color:#1f2937;
+          text-align:center;
+          margin-bottom:30px;
         "
       >
 
-        <div
+        <h1
           style="
-            max-width:620px;
-            margin:30px auto;
-            padding:20px;
+            margin:0;
+            color:#166534;
+            font-size:28px;
           "
         >
+          Online Voting System
+        </h1>
 
-          <div
-            style="
-              background:#ffffff;
-              border-radius:18px;
-              padding:35px;
-              box-shadow:0 8px 30px rgba(0,0,0,0.08);
-            "
-          >
+        <p
+          style="
+            margin-top:8px;
+            color:#6b7280;
+          "
+        >
+          Secure Digital Voting Platform
+        </p>
 
-            <!-- HEADER -->
+      </div>
 
-            <div
-              style="
-                text-align:center;
-                margin-bottom:30px;
-              "
-            >
+      <!-- GREETING -->
 
-              <h1
-                style="
-                  margin:0;
-                  color:#166534;
-                  font-size:28px;
-                "
-              >
-                Online Voting System
-              </h1>
+      <h2>
+        Welcome, ${name}!
+      </h2>
 
-              <p
-                style="
-                  margin-top:8px;
-                  color:#6b7280;
-                "
-              >
-                Secure Digital Voting Platform
-              </p>
+      <p
+        style="
+          line-height:1.6;
+          color:#4b5563;
+        "
+      >
+        Your account has been created successfully.
+        Please verify your email using the OTP below.
+      </p>
 
-            </div>
+      <!-- OTP -->
 
-            <!-- GREETING -->
+      <div
+        style="
+          margin:25px 0;
+          padding:25px;
+          background:#f0fdf4;
+          border:1px solid #bbf7d0;
+          border-radius:14px;
+          text-align:center;
+        "
+      >
 
-            <h2>
-              Welcome, ${name}!
-            </h2>
+        <p
+          style="
+            margin:0 0 10px;
+            color:#166534;
+            font-size:14px;
+            font-weight:bold;
+          "
+        >
+          EMAIL VERIFICATION OTP
+        </p>
 
-            <p
-              style="
-                line-height:1.6;
-                color:#4b5563;
-              "
-            >
-              Your account has been created successfully.
-              Please verify your email using the OTP below.
-            </p>
-
-            <!-- OTP -->
-
-            <div
-              style="
-                margin:25px 0;
-                padding:25px;
-                background:#f0fdf4;
-                border:1px solid #bbf7d0;
-                border-radius:14px;
-                text-align:center;
-              "
-            >
-
-              <p
-                style="
-                  margin:0 0 10px;
-                  color:#166534;
-                  font-size:14px;
-                  font-weight:bold;
-                "
-              >
-                EMAIL VERIFICATION OTP
-              </p>
-
-              <div
-                style="
-                  font-size:34px;
-                  font-weight:bold;
-                  letter-spacing:8px;
-                  color:#14532d;
-                "
-              >
-                ${otp}
-              </div>
-
-              <p
-                style="
-                  margin:12px 0 0;
-                  font-size:13px;
-                  color:#6b7280;
-                "
-              >
-                This OTP expires in
-                ${OTP_EXPIRY_MINUTES} minutes.
-              </p>
-
-            </div>
-
-            <!-- VOTER ID -->
-
-            <div
-              style="
-                margin:25px 0;
-                padding:20px;
-                background:#f9fafb;
-                border-radius:14px;
-                border:1px solid #e5e7eb;
-              "
-            >
-
-              <p
-                style="
-                  margin:0 0 8px;
-                  font-size:13px;
-                  color:#6b7280;
-                "
-              >
-                YOUR VOTER ID
-              </p>
-
-              <h2
-                style="
-                  margin:0;
-                  color:#111827;
-                  letter-spacing:1px;
-                "
-              >
-                ${voterId}
-              </h2>
-
-            </div>
-
-            <!-- VOTING PASSWORD -->
-
-            <div
-              style="
-                margin:25px 0;
-                padding:22px;
-                background:#fff7ed;
-                border:1px solid #fed7aa;
-                border-radius:14px;
-              "
-            >
-
-              <p
-                style="
-                  margin:0 0 8px;
-                  font-size:13px;
-                  color:#9a3412;
-                  font-weight:bold;
-                "
-              >
-                YOUR VOTING PASSWORD
-              </p>
-
-              <div
-                style="
-                  padding:14px;
-                  background:#ffffff;
-                  border-radius:10px;
-                  text-align:center;
-                  font-size:22px;
-                  font-weight:bold;
-                  letter-spacing:2px;
-                  color:#9a3412;
-                  border:1px dashed #fdba74;
-                "
-              >
-                ${votingPassword}
-              </div>
-
-              <p
-                style="
-                  margin:12px 0 0;
-                  font-size:13px;
-                  line-height:1.5;
-                  color:#7c2d12;
-                "
-              >
-                This password is separate from your
-                normal login password. You will need it
-                before casting your vote.
-              </p>
-
-            </div>
-
-            <!-- SECURITY -->
-
-            <div
-              style="
-                margin-top:25px;
-                padding:18px;
-                background:#fef2f2;
-                border-radius:12px;
-                border-left:4px solid #dc2626;
-              "
-            >
-
-              <strong
-                style="color:#991b1b;"
-              >
-                Security Notice
-              </strong>
-
-              <p
-                style="
-                  margin:8px 0 0;
-                  color:#7f1d1d;
-                  font-size:13px;
-                  line-height:1.5;
-                "
-              >
-                Never share your OTP or voting password
-                with another person. Keep this email secure.
-              </p>
-
-            </div>
-
-            <!-- FOOTER -->
-
-            <div
-              style="
-                margin-top:30px;
-                padding-top:20px;
-                border-top:1px solid #e5e7eb;
-                text-align:center;
-                color:#9ca3af;
-                font-size:12px;
-              "
-            >
-
-              <p>
-                This is an automated email.
-                Please do not reply.
-              </p>
-
-              <p>
-                Online Voting System
-              </p>
-
-            </div>
-
-          </div>
-
+        <div
+          style="
+            font-size:34px;
+            font-weight:bold;
+            letter-spacing:8px;
+            color:#14532d;
+          "
+        >
+          ${otp}
         </div>
 
-      </body>
+        <p
+          style="
+            margin:12px 0 0;
+            font-size:13px;
+            color:#6b7280;
+          "
+        >
+          This OTP expires in
+          ${OTP_EXPIRY_MINUTES} minutes.
+        </p>
 
-      </html>
-    `,
+      </div>
+
+      <!-- VOTER ID -->
+
+      <div
+        style="
+          margin:25px 0;
+          padding:20px;
+          background:#f9fafb;
+          border-radius:14px;
+          border:1px solid #e5e7eb;
+        "
+      >
+
+        <p
+          style="
+            margin:0 0 8px;
+            font-size:13px;
+            color:#6b7280;
+          "
+        >
+          YOUR VOTER ID
+        </p>
+
+        <h2
+          style="
+            margin:0;
+            color:#111827;
+            letter-spacing:1px;
+          "
+        >
+          ${voterId}
+        </h2>
+
+      </div>
+
+      <!-- VOTING PASSWORD -->
+
+      <div
+        style="
+          margin:25px 0;
+          padding:22px;
+          background:#fff7ed;
+          border:1px solid #fed7aa;
+          border-radius:14px;
+        "
+      >
+
+        <p
+          style="
+            margin:0 0 8px;
+            font-size:13px;
+            color:#9a3412;
+            font-weight:bold;
+          "
+        >
+          YOUR VOTING PASSWORD
+        </p>
+
+        <div
+          style="
+            padding:14px;
+            background:#ffffff;
+            border-radius:10px;
+            text-align:center;
+            font-size:22px;
+            font-weight:bold;
+            letter-spacing:2px;
+            color:#9a3412;
+            border:1px dashed #fdba74;
+          "
+        >
+          ${votingPassword}
+        </div>
+
+        <p
+          style="
+            margin:12px 0 0;
+            font-size:13px;
+            line-height:1.5;
+            color:#7c2d12;
+          "
+        >
+          This password is separate from your
+          normal login password. You will need it
+          before casting your vote.
+        </p>
+
+      </div>
+
+      <!-- SECURITY -->
+
+      <div
+        style="
+          margin-top:25px;
+          padding:18px;
+          background:#fef2f2;
+          border-radius:12px;
+          border-left:4px solid #dc2626;
+        "
+      >
+
+        <strong
+          style="color:#991b1b;"
+        >
+          Security Notice
+        </strong>
+
+        <p
+          style="
+            margin:8px 0 0;
+            color:#7f1d1d;
+            font-size:13px;
+            line-height:1.5;
+          "
+        >
+          Never share your OTP or voting password
+          with another person. Keep this email secure.
+        </p>
+
+      </div>
+
+      <!-- FOOTER -->
+
+      <div
+        style="
+          margin-top:30px;
+          padding-top:20px;
+          border-top:1px solid #e5e7eb;
+          text-align:center;
+          color:#9ca3af;
+          font-size:12px;
+        "
+      >
+
+        <p>
+          This is an automated email.
+          Please do not reply.
+        </p>
+
+        <p>
+          Online Voting System
+        </p>
+
+      </div>
+
+    </div>
+
+  </div>
+
+</body>
+
+</html>
+`,
   });
 };
+
+// ======================================================
+// SEND RESEND OTP EMAIL
+// ======================================================
+
+const sendResendOTPEmail = async ({
+  name,
+  email,
+  otp,
+}) => {
+  await sendEmail({
+    to: email,
+
+    subject:
+      "Online Voting System - New Verification OTP",
+
+    text: `
+Hello ${name},
+
+Here is your new email verification OTP:
+
+${otp}
+
+This OTP expires in ${OTP_EXPIRY_MINUTES} minutes.
+
+If you did not request this OTP, please ignore this email.
+
+Online Voting System
+`.trim(),
+
+    html: `
+<!DOCTYPE html>
+
+<html>
+
+<head>
+  <meta charset="UTF-8" />
+
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+  />
+
+  <title>
+    Email Verification OTP
+  </title>
+</head>
+
+<body
+  style="
+    margin:0;
+    padding:0;
+    background:#f3f7f5;
+    font-family:Arial,Helvetica,sans-serif;
+    color:#1f2937;
+  "
+>
+
+  <div
+    style="
+      max-width:620px;
+      margin:30px auto;
+      padding:20px;
+    "
+  >
+
+    <div
+      style="
+        background:#ffffff;
+        border-radius:18px;
+        padding:35px;
+        box-shadow:0 8px 30px rgba(0,0,0,0.08);
+      "
+    >
+
+      <!-- HEADER -->
+
+      <div
+        style="
+          text-align:center;
+          margin-bottom:30px;
+        "
+      >
+
+        <h1
+          style="
+            margin:0;
+            color:#166534;
+            font-size:28px;
+          "
+        >
+          Online Voting System
+        </h1>
+
+        <p
+          style="
+            margin-top:8px;
+            color:#6b7280;
+          "
+        >
+          Email Verification
+        </p>
+
+      </div>
+
+      <!-- GREETING -->
+
+      <h2>
+        Hello ${name},
+      </h2>
+
+      <p
+        style="
+          line-height:1.6;
+          color:#4b5563;
+        "
+      >
+        You requested a new verification OTP.
+        Use the OTP below to verify your account.
+      </p>
+
+      <!-- OTP -->
+
+      <div
+        style="
+          margin:25px 0;
+          padding:25px;
+          background:#f0fdf4;
+          border:1px solid #bbf7d0;
+          border-radius:14px;
+          text-align:center;
+        "
+      >
+
+        <p
+          style="
+            margin:0 0 10px;
+            color:#166534;
+            font-size:14px;
+            font-weight:bold;
+          "
+        >
+          EMAIL VERIFICATION OTP
+        </p>
+
+        <div
+          style="
+            font-size:34px;
+            font-weight:bold;
+            letter-spacing:8px;
+            color:#14532d;
+          "
+        >
+          ${otp}
+        </div>
+
+        <p
+          style="
+            margin:12px 0 0;
+            font-size:13px;
+            color:#6b7280;
+          "
+        >
+          This OTP expires in
+          ${OTP_EXPIRY_MINUTES} minutes.
+        </p>
+
+      </div>
+
+      <!-- SECURITY -->
+
+      <div
+        style="
+          margin-top:25px;
+          padding:18px;
+          background:#fef2f2;
+          border-radius:12px;
+          border-left:4px solid #dc2626;
+        "
+      >
+
+        <strong
+          style="color:#991b1b;"
+        >
+          Security Notice
+        </strong>
+
+        <p
+          style="
+            margin:8px 0 0;
+            color:#7f1d1d;
+            font-size:13px;
+            line-height:1.5;
+          "
+        >
+          Never share your OTP with another person.
+          If you did not request this OTP,
+          please ignore this email.
+        </p>
+
+      </div>
+
+      <!-- FOOTER -->
+
+      <div
+        style="
+          margin-top:30px;
+          padding-top:20px;
+          border-top:1px solid #e5e7eb;
+          text-align:center;
+          color:#9ca3af;
+          font-size:12px;
+        "
+      >
+
+        <p>
+          This is an automated email.
+          Please do not reply.
+        </p>
+
+        <p>
+          Online Voting System
+        </p>
+
+      </div>
+
+    </div>
+
+  </div>
+
+</body>
+
+</html>
+`,
+  });
+};
+
 // ======================================================
 // REGISTER USER
 // ======================================================
@@ -507,18 +755,31 @@ export const registerUser = async (req, res) => {
       await User.findOne({ email });
 
     if (existingUser) {
+
+      // ------------------------------------------------
+      // EXISTING BUT NOT VERIFIED
+      // ------------------------------------------------
+
       if (!existingUser.isVerified) {
         return res.status(409).json({
           success: false,
+
           message:
-            "An account with this email already exists but is not verified. Please verify your OTP.",
+            "An account with this email already exists but is not verified. Please verify your OTP or request a new OTP.",
+
           requiresVerification: true,
+
           email,
         });
       }
 
+      // ------------------------------------------------
+      // EXISTING AND VERIFIED
+      // ------------------------------------------------
+
       return res.status(409).json({
         success: false,
+
         message:
           "An account with this email already exists.",
       });
@@ -529,7 +790,10 @@ export const registerUser = async (req, res) => {
     // ==================================================
 
     const hashedPassword =
-      await bcrypt.hash(password, 12);
+      await bcrypt.hash(
+        password,
+        12
+      );
 
     // ==================================================
     // GENERATE OTP
@@ -545,7 +809,10 @@ export const registerUser = async (req, res) => {
     }
 
     const hashedOtp =
-      await bcrypt.hash(otp, 10);
+      await bcrypt.hash(
+        otp,
+        10
+      );
 
     const otpExpiresAt =
       new Date(
@@ -585,15 +852,19 @@ export const registerUser = async (req, res) => {
         email,
 
         // Normal login password
-        password: hashedPassword,
+        password:
+          hashedPassword,
 
         // Separate voting password
         votingPassword:
           hashedVotingPassword,
 
         // OTP
-        otp: hashedOtp,
+        otp:
+          hashedOtp,
+
         otpExpiresAt,
+
         otpAttempts: 0,
 
         // Voter ID
@@ -601,17 +872,22 @@ export const registerUser = async (req, res) => {
 
         // Account state
         role: "user",
+
         isVerified: false,
+
         isActive: true,
+
         isBlocked: false,
+
         profileCompleted: false,
 
         phone: "",
+
         profileImage: "",
       });
 
     // ==================================================
-    // SEND EMAIL
+    // SEND REGISTRATION EMAIL
     // ==================================================
 
     try {
@@ -623,26 +899,29 @@ export const registerUser = async (req, res) => {
         votingPassword,
       });
     } catch (mailError) {
+
       console.error(
         "REGISTRATION EMAIL ERROR:",
         mailError.message
       );
 
-      /*
-       * Important:
-       *
-       * Do NOT return votingPassword or OTP
-       * in the API response.
-       *
-       * The account exists in MongoDB, so the user
-       * needs a resend/recovery mechanism.
-       */
+      // ----------------------------------------------
+      // Account is already created.
+      //
+      // Do NOT expose OTP.
+      // Do NOT expose voting password.
+      //
+      // User can use Resend OTP endpoint.
+      // ----------------------------------------------
 
       return res.status(201).json({
         success: true,
+
         message:
-          "Registration was created, but the verification email could not be sent. Please request a new verification email.",
+          "Registration was created, but the verification email could not be sent. Please request a new verification OTP.",
+
         requiresVerification: true,
+
         email,
       });
     }
@@ -660,13 +939,22 @@ export const registerUser = async (req, res) => {
       requiresVerification: true,
 
       user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        voterId: user.voterId,
+        id:
+          user._id,
+
+        name:
+          user.name,
+
+        email:
+          user.email,
+
+        voterId:
+          user.voterId,
       },
     });
+
   } catch (error) {
+
     console.error(
       "REGISTER USER ERROR:",
       error
@@ -679,6 +967,7 @@ export const registerUser = async (req, res) => {
     if (error.code === 11000) {
       return res.status(409).json({
         success: false,
+
         message:
           "An account with these details already exists.",
       });
@@ -686,8 +975,187 @@ export const registerUser = async (req, res) => {
 
     return res.status(500).json({
       success: false,
+
       message:
         "Registration failed. Please try again.",
+    });
+  }
+};
+
+// ======================================================
+// RESEND OTP
+// ======================================================
+
+export const resendOTP = async (req, res) => {
+  try {
+    let { email } = req.body;
+
+    email = normalizeEmail(email);
+
+    // ==================================================
+    // VALIDATION
+    // ==================================================
+
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+
+        message:
+          "Email is required.",
+      });
+    }
+
+    const emailRegex =
+      /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({
+        success: false,
+
+        message:
+          "Please enter a valid email address.",
+      });
+    }
+
+    // ==================================================
+    // FIND USER
+    // ==================================================
+
+    const user =
+      await User.findOne({
+        email,
+      });
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+
+        message:
+          "No account found with this email.",
+      });
+    }
+
+    // ==================================================
+    // ACCOUNT STATUS
+    // ==================================================
+
+    if (
+      user.isBlocked ||
+      !user.isActive
+    ) {
+      return res.status(403).json({
+        success: false,
+
+        message:
+          "Your account is disabled. Please contact support.",
+      });
+    }
+
+    // ==================================================
+    // ALREADY VERIFIED
+    // ==================================================
+
+    if (user.isVerified) {
+      return res.status(400).json({
+        success: false,
+
+        message:
+          "This account is already verified.",
+
+        verified: true,
+      });
+    }
+
+    // ==================================================
+    // CREATE NEW OTP
+    // ==================================================
+
+    const {
+      otp,
+      expiresAt,
+    } = await createOTP(
+      user._id
+    );
+
+    // ==================================================
+    // SEND EMAIL
+    // ==================================================
+
+    try {
+
+      await sendResendOTPEmail({
+        name:
+          user.name,
+
+        email:
+          user.email,
+
+        otp,
+      });
+
+    } catch (mailError) {
+
+      console.error(
+        "RESEND OTP EMAIL ERROR:",
+        mailError.message
+      );
+
+      // ----------------------------------------------
+      // Clear the newly generated OTP because email
+      // was not successfully sent.
+      // ----------------------------------------------
+
+      const userToClear =
+        await User.findById(
+          user._id
+        ).select(
+          "+otp +otpExpiresAt +otpAttempts"
+        );
+
+      if (userToClear) {
+        userToClear.otp = null;
+        userToClear.otpExpiresAt = null;
+        userToClear.otpAttempts = 0;
+
+        await userToClear.save();
+      }
+
+      return res.status(500).json({
+        success: false,
+
+        message:
+          "Verification email could not be sent. Please try again later.",
+      });
+    }
+
+    // ==================================================
+    // SUCCESS
+    // ==================================================
+
+    return res.status(200).json({
+      success: true,
+
+      message:
+        "A new verification OTP has been sent to your email.",
+
+      email:
+        user.email,
+
+      expiresAt,
+    });
+
+  } catch (error) {
+
+    console.error(
+      "RESEND OTP ERROR:",
+      error
+    );
+
+    return res.status(500).json({
+      success: false,
+
+      message:
+        "Unable to send OTP. Please try again.",
     });
   }
 };
@@ -713,6 +1181,7 @@ export const verifyOTP = async (req, res) => {
     if (!email || !otp) {
       return res.status(400).json({
         success: false,
+
         message:
           "Email and OTP are required.",
       });
@@ -732,6 +1201,7 @@ export const verifyOTP = async (req, res) => {
     if (!user) {
       return res.status(404).json({
         success: false,
+
         message:
           "User not found.",
       });
@@ -747,6 +1217,7 @@ export const verifyOTP = async (req, res) => {
     ) {
       return res.status(403).json({
         success: false,
+
         message:
           "Your account is disabled. Please contact support.",
       });
@@ -759,6 +1230,7 @@ export const verifyOTP = async (req, res) => {
     if (user.isVerified) {
       return res.status(400).json({
         success: false,
+
         message:
           "Account is already verified.",
       });
@@ -774,6 +1246,7 @@ export const verifyOTP = async (req, res) => {
     ) {
       return res.status(400).json({
         success: false,
+
         message:
           "OTP is not available. Please request a new OTP.",
       });
@@ -787,10 +1260,21 @@ export const verifyOTP = async (req, res) => {
       new Date() >
       user.otpExpiresAt
     ) {
+
+      user.otp = null;
+
+      user.otpExpiresAt = null;
+
+      user.otpAttempts = 0;
+
+      await user.save();
+
       return res.status(400).json({
         success: false,
+
         message:
           "OTP has expired. Please request a new OTP.",
+
         expired: true,
       });
     }
@@ -805,6 +1289,7 @@ export const verifyOTP = async (req, res) => {
     ) {
       return res.status(429).json({
         success: false,
+
         message:
           "Too many incorrect OTP attempts. Please request a new OTP.",
       });
@@ -821,6 +1306,7 @@ export const verifyOTP = async (req, res) => {
       );
 
     if (!isValidOtp) {
+
       user.otpAttempts =
         (user.otpAttempts || 0) + 1;
 
@@ -855,6 +1341,10 @@ export const verifyOTP = async (req, res) => {
 
     await user.save();
 
+    // ==================================================
+    // RESPONSE
+    // ==================================================
+
     return res.status(200).json({
       success: true,
 
@@ -863,7 +1353,9 @@ export const verifyOTP = async (req, res) => {
 
       verified: true,
     });
+
   } catch (error) {
+
     console.error(
       "VERIFY OTP ERROR:",
       error
@@ -871,6 +1363,7 @@ export const verifyOTP = async (req, res) => {
 
     return res.status(500).json({
       success: false,
+
       message:
         "OTP verification failed. Please try again.",
     });
@@ -898,6 +1391,7 @@ export const loginUser = async (req, res) => {
     if (!email || !password) {
       return res.status(400).json({
         success: false,
+
         message:
           "Email and password are required.",
       });
@@ -917,6 +1411,7 @@ export const loginUser = async (req, res) => {
     if (!user) {
       return res.status(401).json({
         success: false,
+
         message:
           "Invalid email or password.",
       });
@@ -932,6 +1427,7 @@ export const loginUser = async (req, res) => {
     ) {
       return res.status(403).json({
         success: false,
+
         message:
           "Your account has been disabled. Please contact support.",
       });
@@ -944,9 +1440,15 @@ export const loginUser = async (req, res) => {
     if (!user.isVerified) {
       return res.status(403).json({
         success: false,
+
         message:
           "Please verify your email before logging in.",
-        requiresVerification: true,
+
+        requiresVerification:
+          true,
+
+        email:
+          user.email,
       });
     }
 
@@ -963,6 +1465,7 @@ export const loginUser = async (req, res) => {
     if (!passwordMatch) {
       return res.status(401).json({
         success: false,
+
         message:
           "Invalid email or password.",
       });
@@ -985,7 +1488,9 @@ export const loginUser = async (req, res) => {
     // ==================================================
 
     const token =
-      generateAccessToken(user);
+      generateAccessToken(
+        user
+      );
 
     // ==================================================
     // SAFE RESPONSE
@@ -1000,11 +1505,20 @@ export const loginUser = async (req, res) => {
       token,
 
       user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        voterId: user.voterId,
+        id:
+          user._id,
+
+        name:
+          user.name,
+
+        email:
+          user.email,
+
+        role:
+          user.role,
+
+        voterId:
+          user.voterId,
 
         profileCompleted:
           user.profileCompleted,
@@ -1016,7 +1530,9 @@ export const loginUser = async (req, res) => {
           user.profileImage || "",
       },
     });
+
   } catch (error) {
+
     console.error(
       "LOGIN USER ERROR:",
       error
@@ -1024,6 +1540,7 @@ export const loginUser = async (req, res) => {
 
     return res.status(500).json({
       success: false,
+
       message:
         "Login failed. Please try again.",
     });
@@ -1036,7 +1553,23 @@ export const loginUser = async (req, res) => {
 
 export const getMe = async (req, res) => {
   try {
-    // req.user is populated by authMiddleware
+
+    // ==================================================
+    // AUTH MIDDLEWARE CHECK
+    // ==================================================
+
+    if (!req.user?.id) {
+      return res.status(401).json({
+        success: false,
+
+        message:
+          "Authentication required.",
+      });
+    }
+
+    // ==================================================
+    // FIND USER
+    // ==================================================
 
     const user =
       await User.findById(
@@ -1046,22 +1579,47 @@ export const getMe = async (req, res) => {
     if (!user) {
       return res.status(404).json({
         success: false,
+
         message:
           "User not found.",
       });
     }
 
+    // ==================================================
+    // ACCOUNT STATUS
+    // ==================================================
+
+    if (
+      user.isBlocked ||
+      !user.isActive
+    ) {
+      return res.status(403).json({
+        success: false,
+
+        message:
+          "Your account has been disabled.",
+      });
+    }
+
+    // ==================================================
+    // SAFE RESPONSE
+    // ==================================================
+
     return res.status(200).json({
       success: true,
 
       user: {
-        id: user._id,
+        id:
+          user._id,
 
-        name: user.name,
+        name:
+          user.name,
 
-        email: user.email,
+        email:
+          user.email,
 
-        role: user.role,
+        role:
+          user.role,
 
         voterId:
           user.voterId,
@@ -1088,7 +1646,9 @@ export const getMe = async (req, res) => {
           user.lastLogin,
       },
     });
+
   } catch (error) {
+
     console.error(
       "GET ME ERROR:",
       error
@@ -1096,6 +1656,7 @@ export const getMe = async (req, res) => {
 
     return res.status(500).json({
       success: false,
+
       message:
         "Unable to fetch your account.",
     });

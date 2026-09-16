@@ -1,36 +1,25 @@
 import bcrypt from "bcryptjs";
-
 import User from "../models/User.js";
-
 import generateOTP from "../utils/generateOTP.js";
 
-// ======================================================
-// OTP CONSTANTS
-// ======================================================
-
 const OTP_EXPIRY_MINUTES = 10;
-
 const MAX_OTP_ATTEMPTS = 5;
-
-// ======================================================
-// CREATE OTP
-// ======================================================
 
 export const createOTP = async (userId) => {
   if (!userId) {
     throw new Error("User ID is required.");
   }
 
-  const otp = generateOTP();
+  const otp = String(generateOTP()).trim();
 
-  const hashedOTP = await bcrypt.hash(
-    String(otp),
-    10
-  );
+  if (!otp) {
+    throw new Error("OTP generation failed.");
+  }
+
+  const hashedOTP = await bcrypt.hash(otp, 10);
 
   const otpExpiresAt = new Date(
-    Date.now() +
-      OTP_EXPIRY_MINUTES * 60 * 1000
+    Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000
   );
 
   const user = await User.findByIdAndUpdate(
@@ -57,18 +46,9 @@ export const createOTP = async (userId) => {
   };
 };
 
-// ======================================================
-// VERIFY OTP
-// ======================================================
-
-export const verifyOTPService = async (
-  userId,
-  otp
-) => {
+export const verifyOTPService = async (userId, otp) => {
   if (!userId || !otp) {
-    throw new Error(
-      "User ID and OTP are required."
-    );
+    throw new Error("User ID and OTP are required.");
   }
 
   const user = await User.findById(userId).select(
@@ -85,9 +65,7 @@ export const verifyOTPService = async (
     );
   }
 
-  if (
-    new Date() > user.otpExpiresAt
-  ) {
+  if (new Date() > user.otpExpiresAt) {
     user.otp = null;
     user.otpExpiresAt = null;
     user.otpAttempts = 0;
@@ -99,16 +77,15 @@ export const verifyOTPService = async (
     );
   }
 
-  if (
-    user.otpAttempts >= MAX_OTP_ATTEMPTS
-  ) {
+  if (user.otpAttempts >= MAX_OTP_ATTEMPTS) {
     user.otp = null;
     user.otpExpiresAt = null;
+    user.otpAttempts = 0;
 
     await user.save();
 
     throw new Error(
-      "Maximum OTP attempts exceeded."
+      "Maximum OTP attempts exceeded. Please request a new OTP."
     );
   }
 
@@ -118,7 +95,7 @@ export const verifyOTPService = async (
   );
 
   if (!isMatch) {
-    user.otpAttempts += 1;
+    user.otpAttempts = (user.otpAttempts || 0) + 1;
 
     await user.save();
 
@@ -135,23 +112,14 @@ export const verifyOTPService = async (
   return true;
 };
 
-// ======================================================
-// CLEAR OTP
-// ======================================================
-
 export const clearOTP = async (userId) => {
-  if (!userId) {
-    return;
-  }
+  if (!userId) return;
 
-  await User.findByIdAndUpdate(
-    userId,
-    {
-      $set: {
-        otp: null,
-        otpExpiresAt: null,
-        otpAttempts: 0,
-      },
-    }
-  );
+  await User.findByIdAndUpdate(userId, {
+    $set: {
+      otp: null,
+      otpExpiresAt: null,
+      otpAttempts: 0,
+    },
+  });
 };
