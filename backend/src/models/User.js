@@ -35,14 +35,6 @@ const userSchema = new mongoose.Schema(
       select: false,
     },
 
-    // =====================================================
-    // VOTING PASSWORD
-    // =====================================================
-    // Separate password used specifically before casting a vote.
-    //
-    // IMPORTANT:
-    // Only the bcrypt hash should be stored here.
-    // Plain voting password should NEVER be stored in MongoDB.
 
     votingPassword: {
       type: String,
