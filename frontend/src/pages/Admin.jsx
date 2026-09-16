@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import toast from "react-hot-toast";
+
 import {
   AlertCircle,
   CalendarDays,
@@ -9,11 +10,12 @@ import {
   ChevronDown,
   Clock3,
   Edit3,
+  ExternalLink,
   FileText,
   Image as ImageIcon,
   Info,
   Loader2,
-  Plus,
+  Mail,
   RefreshCw,
   Save,
   Search,
@@ -22,9 +24,12 @@ import {
   UserCheck,
   UserPlus,
   Users,
+  UserX,
   X,
   XCircle,
 } from "lucide-react";
+
+import API from "../api/axios";
 
 import {
   getAllElections,
@@ -41,8 +46,6 @@ import {
   updateCandidate,
   deleteCandidate,
 } from "../api/candidateApi";
-
-import API from "../api/axios";
 
 /* =========================================================
    CONSTANTS
@@ -79,12 +82,6 @@ const ELECTION_TYPES = [
   "COLLEGE",
   "ORGANIZATION",
   "OTHER",
-];
-
-const LOCKED_STATUSES = [
-  "LIVE",
-  "COMPLETED",
-  "CANCELLED",
 ];
 
 const VERIFICATION_STATUSES = [
@@ -141,7 +138,9 @@ const getErrorMessage = (error) => {
 const getElectionsFromResponse = (response) => {
   const data = response?.data || response;
 
-  if (Array.isArray(data)) return data;
+  if (Array.isArray(data)) {
+    return data;
+  }
 
   if (Array.isArray(data?.elections)) {
     return data.elections;
@@ -157,7 +156,9 @@ const getElectionsFromResponse = (response) => {
 const getCandidatesFromResponse = (response) => {
   const data = response?.data || response;
 
-  if (Array.isArray(data)) return data;
+  if (Array.isArray(data)) {
+    return data;
+  }
 
   if (Array.isArray(data?.candidates)) {
     return data.candidates;
@@ -204,24 +205,6 @@ const formatDate = (date) => {
   });
 };
 
-const formatDateTime = (date) => {
-  if (!date) return "Not set";
-
-  const parsedDate = new Date(date);
-
-  if (Number.isNaN(parsedDate.getTime())) {
-    return "Invalid date";
-  }
-
-  return parsedDate.toLocaleString("en-IN", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-};
-
 const formatDateTimeLocal = (date) => {
   if (!date) return "";
 
@@ -240,18 +223,30 @@ const formatDateTimeLocal = (date) => {
   return localDate.toISOString().slice(0, 16);
 };
 
+const formatDateTime = (date) => {
+  if (!date) return "Not available";
+
+  const parsedDate = new Date(date);
+
+  if (Number.isNaN(parsedDate.getTime())) {
+    return "Invalid date";
+  }
+
+  return parsedDate.toLocaleString("en-IN", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+};
+
 const getStatus = (election) => {
   const status = election?.status?.toUpperCase();
 
   return (
     STATUS_STYLES[status] ||
     STATUS_STYLES.DRAFT
-  );
-};
-
-const isElectionLocked = (election) => {
-  return LOCKED_STATUSES.includes(
-    election?.status?.toUpperCase()
   );
 };
 
@@ -289,15 +284,64 @@ const getVerificationStyle = (status) => {
 
     default:
       return {
-        label: "Not Submitted",
+        label: "Not submitted",
         className:
           "border-slate-400/20 bg-slate-500/10 text-slate-400",
       };
   }
 };
 
+const getInitials = (name = "") => {
+  const value = String(name).trim();
+
+  if (!value) return "U";
+
+  const parts = value.split(/\s+/);
+
+  if (parts.length === 1) {
+    return parts[0].slice(0, 2).toUpperCase();
+  }
+
+  return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+};
+
+const getAssetUrl = (value) => {
+  if (!value) return "";
+
+  let fileValue = value;
+
+  if (typeof value === "object") {
+    fileValue =
+      value?.url ||
+      value?.path ||
+      value?.secure_url ||
+      value?.location ||
+      "";
+  }
+
+  if (!fileValue || typeof fileValue !== "string") {
+    return "";
+  }
+
+  if (/^https?:\/\//i.test(fileValue)) {
+    return fileValue;
+  }
+
+  const apiUrl =
+    import.meta.env.VITE_API_URL ||
+    "https://online-voting-system-6i81.onrender.com/api";
+
+  const origin = apiUrl.replace(/\/api\/?$/, "");
+
+  return `${origin}${
+    fileValue.startsWith("/")
+      ? fileValue
+      : `/${fileValue}`
+  }`;
+};
+
 /* =========================================================
-   REUSABLE FORM COMPONENTS
+   COMMON INPUT COMPONENTS
 ========================================================= */
 
 const FieldLabel = ({
@@ -308,9 +352,7 @@ const FieldLabel = ({
     {children}
 
     {required && (
-      <span className="ml-1 text-red-400">
-        *
-      </span>
+      <span className="ml-1 text-red-400">*</span>
     )}
   </label>
 );
@@ -340,7 +382,6 @@ const Textarea = ({
   onChange,
   placeholder,
   rows = 4,
-  disabled = false,
 }) => (
   <textarea
     name={name}
@@ -348,8 +389,7 @@ const Textarea = ({
     onChange={onChange}
     rows={rows}
     placeholder={placeholder}
-    disabled={disabled}
-    className="w-full resize-none rounded-xl border border-white/10 bg-slate-900/70 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-emerald-400/40 focus:ring-2 focus:ring-emerald-500/10 disabled:cursor-not-allowed disabled:opacity-50"
+    className="w-full resize-none rounded-xl border border-white/10 bg-slate-900/70 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-emerald-400/40 focus:ring-2 focus:ring-emerald-500/10"
   />
 );
 
@@ -399,29 +439,26 @@ const CandidateForm = ({
       }}
       className="overflow-hidden"
     >
-      <div className="mt-5 rounded-2xl border border-emerald-400/15 bg-emerald-500/[0.035] p-5 sm:p-6">
-        <div className="mb-5 flex items-start justify-between gap-4">
+      <div className="mt-5 rounded-2xl border border-emerald-400/15 bg-emerald-500/[0.035] p-5">
+        <div className="mb-5 flex items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-2">
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-500/10">
-                <UserPlus
-                  size={18}
-                  className="text-emerald-400"
-                />
-              </div>
+              <UserPlus
+                size={18}
+                className="text-emerald-400"
+              />
 
-              <div>
-                <h4 className="font-bold text-white">
-                  {editingCandidateId
-                    ? "Edit Candidate"
-                    : "Add Candidate / Voting Option"}
-                </h4>
-
-                <p className="mt-0.5 text-xs text-slate-500">
-                  Add as many voting options as required.
-                </p>
-              </div>
+              <h4 className="font-bold text-white">
+                {editingCandidateId
+                  ? "Edit Candidate"
+                  : "Add Candidate / Option"}
+              </h4>
             </div>
+
+            <p className="mt-1 text-xs text-slate-500">
+              Add as many candidates/options as required
+              for this election.
+            </p>
           </div>
 
           <button
@@ -443,7 +480,7 @@ const CandidateForm = ({
           <div className="grid gap-5 md:grid-cols-2">
             <div>
               <FieldLabel required>
-                Candidate Name
+                Name
               </FieldLabel>
 
               <Input
@@ -473,7 +510,7 @@ const CandidateForm = ({
           <div className="grid gap-5 md:grid-cols-2">
             <div>
               <FieldLabel>
-                Candidate Photo URL
+                Photo URL
               </FieldLabel>
 
               <div className="relative">
@@ -534,7 +571,6 @@ const CandidateForm = ({
               onChange={handleChange}
               placeholder="Candidate manifesto"
               rows={4}
-              disabled={candidateSubmitting}
             />
           </div>
 
@@ -550,7 +586,6 @@ const CandidateForm = ({
                 onChange={handleChange}
                 placeholder="Candidate biography"
                 rows={4}
-                disabled={candidateSubmitting}
               />
             </div>
 
@@ -565,19 +600,17 @@ const CandidateForm = ({
                 onChange={handleChange}
                 placeholder="Candidate experience"
                 rows={4}
-                disabled={candidateSubmitting}
               />
             </div>
           </div>
 
-          <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-white/10 bg-white/[0.025] p-4">
+          <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-white/10 bg-white/[0.025] p-4">
             <input
               type="checkbox"
               name="isActive"
               checked={candidateForm.isActive}
               onChange={handleChange}
-              disabled={candidateSubmitting}
-              className="mt-1 h-4 w-4 accent-emerald-500"
+              className="h-4 w-4 accent-emerald-500"
             />
 
             <div>
@@ -585,13 +618,13 @@ const CandidateForm = ({
                 Active Candidate
               </p>
 
-              <p className="mt-1 text-xs leading-5 text-slate-500">
+              <p className="text-xs text-slate-500">
                 Active candidates are available for voting.
               </p>
             </div>
           </label>
 
-          <div className="flex flex-col gap-3 pt-2 sm:flex-row sm:justify-end">
+          <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
             <button
               type="button"
               onClick={onCancel}
@@ -617,7 +650,7 @@ const CandidateForm = ({
               ) : editingCandidateId ? (
                 <Save size={17} />
               ) : (
-                <Plus size={17} />
+                <UserPlus size={17} />
               )}
 
               {candidateSubmitting
@@ -634,7 +667,7 @@ const CandidateForm = ({
 };
 
 /* =========================================================
-   CANDIDATE ITEM
+   CANDIDATE CARD
 ========================================================= */
 
 const CandidateItem = ({
@@ -642,7 +675,7 @@ const CandidateItem = ({
   onEdit,
   onDelete,
   actionId,
-  readOnly,
+  locked,
 }) => {
   const isLoading =
     actionId === candidate?._id;
@@ -669,7 +702,10 @@ const CandidateItem = ({
           {candidate?.photo ? (
             <img
               src={candidate.photo}
-              alt={candidate.name || "Candidate"}
+              alt={
+                candidate.name ||
+                "Candidate"
+              }
               className="h-full w-full object-cover"
               onError={(event) => {
                 event.currentTarget.style.display =
@@ -685,7 +721,7 @@ const CandidateItem = ({
 
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <h5 className="break-words font-bold text-white">
+            <h5 className="truncate font-bold text-white">
               {candidate?.name ||
                 "Unnamed Candidate"}
             </h5>
@@ -716,11 +752,13 @@ const CandidateItem = ({
           )}
         </div>
 
-        {!readOnly && (
+        {!locked && (
           <div className="flex shrink-0 gap-2">
             <button
               type="button"
-              onClick={() => onEdit(candidate)}
+              onClick={() =>
+                onEdit(candidate)
+              }
               disabled={isLoading}
               className="rounded-xl border border-white/10 bg-white/[0.04] p-2 text-slate-400 transition hover:border-emerald-400/20 hover:bg-emerald-500/10 hover:text-emerald-300 disabled:opacity-50"
               title="Edit candidate"
@@ -730,7 +768,9 @@ const CandidateItem = ({
 
             <button
               type="button"
-              onClick={() => onDelete(candidate)}
+              onClick={() =>
+                onDelete(candidate)
+              }
               disabled={isLoading}
               className="rounded-xl border border-red-400/20 bg-red-500/10 p-2 text-red-300 transition hover:bg-red-500/20 disabled:opacity-50"
               title="Delete candidate"
@@ -776,30 +816,6 @@ const CandidateItem = ({
               </p>
             </div>
           )}
-
-          {candidate?.biography && (
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-600">
-                Biography
-              </p>
-
-              <p className="mt-1 line-clamp-2 text-xs text-slate-400">
-                {candidate.biography}
-              </p>
-            </div>
-          )}
-
-          {candidate?.manifesto && (
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-600">
-                Manifesto
-              </p>
-
-              <p className="mt-1 line-clamp-2 text-xs text-slate-400">
-                {candidate.manifesto}
-              </p>
-            </div>
-          )}
         </div>
       )}
     </motion.div>
@@ -807,19 +823,23 @@ const CandidateItem = ({
 };
 
 /* =========================================================
-   VOTER VERIFICATION CARD
+   USER VERIFICATION CARD
 ========================================================= */
 
-const VoterVerificationCard = ({
+const UserVerificationCard = ({
   user,
-  onVerificationChange,
-  actionId,
+  actionKey,
+  onVerification,
 }) => {
   const profile = user?.voterProfile;
 
-  const status = getVerificationStatus(user);
-  const statusStyle =
-    getVerificationStyle(status);
+  const verificationStatus =
+    getVerificationStatus(user);
+
+  const verificationStyle =
+    getVerificationStyle(
+      verificationStatus
+    );
 
   const userName =
     profile?.name ||
@@ -827,305 +847,360 @@ const VoterVerificationCard = ({
     "Unnamed User";
 
   const email =
-    user?.email || "No email available";
+    user?.email ||
+    profile?.email ||
+    "No email";
 
   const voterId =
-    profile?.voterId || "Not assigned";
+    profile?.voterId ||
+    user?.voterId ||
+    "Not assigned";
 
-  const isComplete =
-    profile?.isComplete === true ||
-    user?.voterProfileComplete === true;
+  const profileComplete =
+    profile?.isComplete === true;
 
-  const isEligible =
-    profile?.isEligible === true ||
-    user?.voterEligible === true;
+  const eligible =
+    profile?.isEligible === true;
 
-  const currentAction =
-    actionId?.startsWith(`${user?._id}-`)
-      ? actionId
-      : null;
+  const idProofUrl =
+    getAssetUrl(profile?.idProof);
 
-  const isVerifying =
-    currentAction ===
-    `${user?._id}-VERIFIED`;
+  const profilePhoto =
+    getAssetUrl(profile?.profilePhoto);
 
-  const isRejecting =
-    currentAction ===
-    `${user?._id}-REJECTED`;
+  const isActionLoading =
+    actionKey?.startsWith(
+      `${user?._id}:`
+    );
 
-  const isPending =
-    currentAction ===
-    `${user?._id}-PENDING`;
+  const isVerifyDisabled =
+    !profile ||
+    !profileComplete ||
+    isActionLoading;
+
+  const isNoProfile =
+    !profile ||
+    verificationStatus ===
+      "NOT_SUBMITTED";
 
   return (
     <motion.div
       layout
       initial={{
         opacity: 0,
-        y: 12,
+        y: 15,
       }}
       animate={{
         opacity: 1,
         y: 0,
       }}
-      className="rounded-2xl border border-white/10 bg-slate-950/40 p-5 transition hover:border-emerald-400/20"
+      className="overflow-hidden rounded-3xl border border-white/10 bg-white/[0.035] shadow-xl backdrop-blur-xl"
     >
-      {/* Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div className="flex min-w-0 items-start gap-4">
+      <div className="p-5">
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-start">
           {/* Avatar */}
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-emerald-400/15 bg-emerald-500/10 text-sm font-bold text-emerald-300">
-            {profile?.profilePhoto ? (
-              <img
-                src={profile.profilePhoto}
-                alt={userName}
-                className="h-full w-full object-cover"
-              />
-            ) : (
-              userName
-                .charAt(0)
-                .toUpperCase()
-            )}
-          </div>
+          <div className="flex items-start gap-4">
+            <div className="h-16 w-16 shrink-0 overflow-hidden rounded-2xl border border-emerald-400/20 bg-emerald-500/10">
+              {profilePhoto ? (
+                <img
+                  src={profilePhoto}
+                  alt={userName}
+                  className="h-full w-full object-cover"
+                  onError={(event) => {
+                    event.currentTarget.style.display =
+                      "none";
+                  }}
+                />
+              ) : (
+                <div className="flex h-full w-full items-center justify-center text-lg font-black text-emerald-300">
+                  {getInitials(
+                    userName
+                  )}
+                </div>
+              )}
+            </div>
 
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <h3 className="break-words text-base font-bold text-white">
+            <div className="min-w-0 lg:hidden">
+              <h3 className="truncate text-base font-bold text-white">
                 {userName}
               </h3>
 
+              <p className="mt-1 flex items-center gap-1.5 text-xs text-slate-500">
+                <Mail size={13} />
+                <span className="truncate">
+                  {email}
+                </span>
+              </p>
+            </div>
+          </div>
+
+          {/* User info */}
+          <div className="min-w-0 flex-1">
+            <div className="hidden lg:block">
+              <div className="flex flex-wrap items-center gap-2">
+                <h3 className="text-lg font-bold text-white">
+                  {userName}
+                </h3>
+
+                <span
+                  className={`rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase ${verificationStyle.className}`}
+                >
+                  {verificationStyle.label}
+                </span>
+              </div>
+
+              <p className="mt-1 flex items-center gap-1.5 text-sm text-slate-500">
+                <Mail size={14} />
+                {email}
+              </p>
+            </div>
+
+            <div className="mb-4 flex lg:hidden">
               <span
-                className={`rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase ${statusStyle.className}`}
+                className={`rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase ${verificationStyle.className}`}
               >
-                {statusStyle.label}
+                {verificationStyle.label}
               </span>
             </div>
 
-            <p className="mt-1 break-all text-xs text-slate-500">
-              {email}
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* Profile details */}
-      <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="rounded-xl border border-white/5 bg-white/[0.025] p-3">
-          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-600">
-            Voter ID
-          </p>
-
-          <p className="mt-1 break-all text-sm font-semibold text-slate-200">
-            {voterId}
-          </p>
-        </div>
-
-        <div className="rounded-xl border border-white/5 bg-white/[0.025] p-3">
-          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-600">
-            Profile
-          </p>
-
-          <p
-            className={`mt-1 text-sm font-semibold ${
-              isComplete
-                ? "text-emerald-300"
-                : "text-amber-300"
-            }`}
-          >
-            {isComplete
-              ? "Complete"
-              : "Incomplete"}
-          </p>
-        </div>
-
-        <div className="rounded-xl border border-white/5 bg-white/[0.025] p-3">
-          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-600">
-            Eligibility
-          </p>
-
-          <p
-            className={`mt-1 text-sm font-semibold ${
-              isEligible
-                ? "text-emerald-300"
-                : "text-slate-400"
-            }`}
-          >
-            {isEligible
-              ? "Eligible"
-              : "Not Eligible"}
-          </p>
-        </div>
-
-        <div className="rounded-xl border border-white/5 bg-white/[0.025] p-3">
-          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-600">
-            Verification
-          </p>
-
-          <p className="mt-1 text-sm font-semibold text-slate-200">
-            {statusStyle.label}
-          </p>
-        </div>
-      </div>
-
-      {/* Additional profile information */}
-      {profile && (
-        <div className="mt-4 grid gap-3 border-t border-white/5 pt-4 sm:grid-cols-2 lg:grid-cols-4">
-          {profile.age !== undefined &&
-            profile.age !== null && (
-              <div>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <div className="rounded-xl border border-white/5 bg-slate-950/40 p-3">
                 <p className="text-[10px] font-bold uppercase tracking-wider text-slate-600">
-                  Age
+                  Voter ID
                 </p>
 
-                <p className="mt-1 text-xs text-slate-400">
-                  {profile.age}
+                <p className="mt-1 truncate text-sm font-semibold text-slate-200">
+                  {voterId}
                 </p>
+              </div>
+
+              <div className="rounded-xl border border-white/5 bg-slate-950/40 p-3">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-600">
+                  Profile
+                </p>
+
+                <p
+                  className={`mt-1 text-sm font-semibold ${
+                    profileComplete
+                      ? "text-emerald-300"
+                      : "text-amber-300"
+                  }`}
+                >
+                  {profileComplete
+                    ? "Complete"
+                    : "Incomplete"}
+                </p>
+              </div>
+
+              <div className="rounded-xl border border-white/5 bg-slate-950/40 p-3">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-600">
+                  Eligibility
+                </p>
+
+                <p
+                  className={`mt-1 text-sm font-semibold ${
+                    eligible
+                      ? "text-emerald-300"
+                      : "text-slate-400"
+                  }`}
+                >
+                  {eligible
+                    ? "Eligible"
+                    : "Not eligible"}
+                </p>
+              </div>
+
+              <div className="rounded-xl border border-white/5 bg-slate-950/40 p-3">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-600">
+                  Verification
+                </p>
+
+                <p className="mt-1 text-sm font-semibold text-slate-200">
+                  {verificationStyle.label}
+                </p>
+              </div>
+            </div>
+
+            {profile && (
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                {(profile.phone ||
+                  profile.city ||
+                  profile.state) && (
+                  <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-600">
+                      Contact / Location
+                    </p>
+
+                    <p className="mt-1 text-xs leading-5 text-slate-400">
+                      {profile.phone ||
+                        "Phone not available"}
+                      {profile.city
+                        ? ` • ${profile.city}`
+                        : ""}
+                      {profile.state
+                        ? ` • ${profile.state}`
+                        : ""}
+                    </p>
+                  </div>
+                )}
+
+                <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-600">
+                    Verification Date
+                  </p>
+
+                  <p className="mt-1 text-xs text-slate-400">
+                    {profile.verifiedAt
+                      ? formatDateTime(
+                          profile.verifiedAt
+                        )
+                      : "Not verified"}
+                  </p>
+                </div>
               </div>
             )}
 
-          {profile.gender && (
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-600">
-                Gender
-              </p>
+            {/* ID proof */}
+            {profile && (
+              <div className="mt-4 flex flex-wrap items-center gap-3">
+                {idProofUrl ? (
+                  <a
+                    href={idProofUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-2 rounded-xl border border-teal-400/20 bg-teal-500/10 px-3 py-2 text-xs font-bold text-teal-300 transition hover:bg-teal-500/20"
+                  >
+                    <ExternalLink size={14} />
+                    View ID Proof
+                  </a>
+                ) : (
+                  <span className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.025] px-3 py-2 text-xs font-semibold text-slate-500">
+                    <FileText size={14} />
+                    ID Proof not available
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
 
-              <p className="mt-1 text-xs text-slate-400">
-                {profile.gender}
-              </p>
-            </div>
-          )}
+          {/* Actions */}
+          <div className="w-full shrink-0 lg:w-48">
+            {isNoProfile ? (
+              <div className="rounded-2xl border border-slate-400/10 bg-slate-500/5 p-4">
+                <p className="text-xs font-semibold text-slate-400">
+                  No voter profile submitted.
+                </p>
 
-          {profile.city && (
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-600">
-                City
-              </p>
+                <p className="mt-1 text-[11px] leading-5 text-slate-600">
+                  Verification cannot be changed until
+                  a voter profile exists.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <button
+                  type="button"
+                  onClick={() =>
+                    onVerification(
+                      user,
+                      "VERIFIED"
+                    )
+                  }
+                  disabled={isVerifyDisabled}
+                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 px-4 py-3 text-xs font-bold text-white shadow-lg shadow-emerald-500/10 transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  {actionKey ===
+                  `${user?._id}:VERIFIED` ? (
+                    <Loader2
+                      size={15}
+                      className="animate-spin"
+                    />
+                  ) : (
+                    <UserCheck size={15} />
+                  )}
 
-              <p className="mt-1 text-xs text-slate-400">
-                {profile.city}
-              </p>
-            </div>
-          )}
+                  Verify Voter
+                </button>
 
-          {profile.state && (
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-600">
-                State
-              </p>
+                <button
+                  type="button"
+                  onClick={() =>
+                    onVerification(
+                      user,
+                      "REJECTED"
+                    )
+                  }
+                  disabled={isActionLoading}
+                  className="flex w-full items-center justify-center gap-2 rounded-xl border border-red-400/20 bg-red-500/10 px-4 py-3 text-xs font-bold text-red-300 transition hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  {actionKey ===
+                  `${user?._id}:REJECTED` ? (
+                    <Loader2
+                      size={15}
+                      className="animate-spin"
+                    />
+                  ) : (
+                    <UserX size={15} />
+                  )}
 
-              <p className="mt-1 text-xs text-slate-400">
-                {profile.state}
-              </p>
-            </div>
-          )}
+                  Reject
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    onVerification(
+                      user,
+                      "PENDING"
+                    )
+                  }
+                  disabled={isActionLoading}
+                  className="flex w-full items-center justify-center gap-2 rounded-xl border border-amber-400/20 bg-amber-500/10 px-4 py-3 text-xs font-bold text-amber-300 transition hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  {actionKey ===
+                  `${user?._id}:PENDING` ? (
+                    <Loader2
+                      size={15}
+                      className="animate-spin"
+                    />
+                  ) : (
+                    <Clock3 size={15} />
+                  )}
+
+                  Set Pending
+                </button>
+
+                {!profileComplete && (
+                  <p className="pt-1 text-center text-[10px] leading-4 text-amber-400/80">
+                    Verify button is disabled because
+                    the voter profile is incomplete.
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
         </div>
-      )}
-
-      {/* Verification warning */}
-      {!isComplete && (
-        <div className="mt-4 flex items-start gap-3 rounded-xl border border-amber-400/15 bg-amber-500/[0.05] p-3">
-          <Info
-            size={16}
-            className="mt-0.5 shrink-0 text-amber-400"
-          />
-
-          <p className="text-xs leading-5 text-amber-300/80">
-            This voter profile is incomplete. The
-            backend will not allow verification until
-            the profile is complete.
-          </p>
-        </div>
-      )}
-
-      {/* Actions */}
-      <div className="mt-5 flex flex-col gap-2 border-t border-white/5 pt-4 sm:flex-row">
-        <button
-          type="button"
-          onClick={() =>
-            onVerificationChange(
-              user,
-              "VERIFIED"
-            )
-          }
-          disabled={
-            !isComplete ||
-            Boolean(currentAction)
-          }
-          className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-500/10 px-4 py-2.5 text-xs font-bold text-emerald-300 transition hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-40"
-        >
-          {isVerifying ? (
-            <Loader2
-              size={15}
-              className="animate-spin"
-            />
-          ) : (
-            <CheckCircle2 size={15} />
-          )}
-
-          {isVerifying
-            ? "Verifying..."
-            : "Verify Voter"}
-        </button>
-
-        <button
-          type="button"
-          onClick={() =>
-            onVerificationChange(
-              user,
-              "REJECTED"
-            )
-          }
-          disabled={Boolean(currentAction)}
-          className="inline-flex items-center justify-center gap-2 rounded-xl bg-red-500/10 px-4 py-2.5 text-xs font-bold text-red-300 transition hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-40"
-        >
-          {isRejecting ? (
-            <Loader2
-              size={15}
-              className="animate-spin"
-            />
-          ) : (
-            <XCircle size={15} />
-          )}
-
-          {isRejecting
-            ? "Rejecting..."
-            : "Reject"}
-        </button>
-
-        <button
-          type="button"
-          onClick={() =>
-            onVerificationChange(
-              user,
-              "PENDING"
-            )
-          }
-          disabled={Boolean(currentAction)}
-          className="inline-flex items-center justify-center gap-2 rounded-xl bg-amber-500/10 px-4 py-2.5 text-xs font-bold text-amber-300 transition hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:opacity-40"
-        >
-          {isPending ? (
-            <Loader2
-              size={15}
-              className="animate-spin"
-            />
-          ) : (
-            <Clock3 size={15} />
-          )}
-
-          {isPending
-            ? "Updating..."
-            : "Set Pending"}
-        </button>
       </div>
     </motion.div>
   );
 };
 
 /* =========================================================
-   MAIN COMPONENT
+   MAIN ADMIN COMPONENT
 ========================================================= */
 
-const ManageElections = () => {
+const Admin = () => {
+  /* =======================================================
+     MAIN SECTION
+  ======================================================= */
+
+  const [activeSection, setActiveSection] =
+    useState("users");
+
+  /* =======================================================
+     ELECTION STATES
+  ======================================================= */
+
   const [elections, setElections] =
     useState([]);
 
@@ -1168,45 +1243,47 @@ const ManageElections = () => {
   const [showCandidateForm, setShowCandidateForm] =
     useState(null);
 
-  const [error, setError] =
+  const [electionError, setElectionError] =
     useState("");
 
   /* =======================================================
-     VOTER VERIFICATION STATE
+     USER STATES
   ======================================================= */
 
   const [users, setUsers] =
     useState([]);
 
   const [usersLoading, setUsersLoading] =
-    useState(true);
-
-  const [usersRefreshing, setUsersRefreshing] =
     useState(false);
 
-  const [verificationActionId, setVerificationActionId] =
-    useState(null);
+  const [usersError, setUsersError] =
+    useState("");
 
   const [userSearch, setUserSearch] =
     useState("");
 
-  const [verificationFilter, setVerificationFilter] =
+  const [userStatusFilter, setUserStatusFilter] =
     useState("ALL");
 
+  const [verificationActionKey, setVerificationActionKey] =
+    useState(null);
+
   /* =======================================================
-     LOAD ELECTION DATA
+     LOAD ELECTIONS
   ======================================================= */
 
-  const loadElectionData = async () => {
+  const loadElections = async () => {
     try {
       setLoading(true);
-      setError("");
+      setElectionError("");
 
       const response =
         await getAllElections();
 
       const electionData =
-        getElectionsFromResponse(response);
+        getElectionsFromResponse(
+          response
+        );
 
       setElections(electionData);
 
@@ -1217,11 +1294,13 @@ const ManageElections = () => {
               try {
                 const candidateResponse =
                   await getCandidates({
-                    election: election._id,
+                    election:
+                      election._id,
                   });
 
                 return {
-                  electionId: election._id,
+                  electionId:
+                    election._id,
                   candidates:
                     getCandidatesFromResponse(
                       candidateResponse
@@ -1234,7 +1313,8 @@ const ManageElections = () => {
                 );
 
                 return {
-                  electionId: election._id,
+                  electionId:
+                    election._id,
                   candidates: [],
                 };
               }
@@ -1245,22 +1325,27 @@ const ManageElections = () => {
       const candidateMap = {};
 
       candidateResults.forEach(
-        ({ electionId, candidates }) => {
+        ({
+          electionId,
+          candidates,
+        }) => {
           candidateMap[electionId] =
             candidates;
         }
       );
 
       setCandidateLists(candidateMap);
-    } catch (err) {
+    } catch (error) {
       console.error(
         "Failed to load elections:",
-        err
+        error
       );
 
       setElections([]);
       setCandidateLists({});
-      setError(getErrorMessage(err));
+      setElectionError(
+        getErrorMessage(error)
+      );
     } finally {
       setLoading(false);
     }
@@ -1270,44 +1355,43 @@ const ManageElections = () => {
      LOAD USERS
   ======================================================= */
 
-  const loadUsers = async (
-    isRefresh = false
-  ) => {
+  const loadUsers = async () => {
     try {
-      if (isRefresh) {
-        setUsersRefreshing(true);
-      } else {
-        setUsersLoading(true);
-      }
+      setUsersLoading(true);
+      setUsersError("");
 
       const response =
-        await API.get("/users");
+        await API.get("/users", {
+          params: {
+            role: "user",
+          },
+        });
 
       const userData =
         getUsersFromResponse(response);
 
       setUsers(userData);
-    } catch (err) {
+    } catch (error) {
       console.error(
         "Failed to load users:",
-        err
+        error
       );
 
       setUsers([]);
-
-      if (err?.response?.status !== 429) {
-        toast.error(
-          getErrorMessage(err)
-        );
-      }
+      setUsersError(
+        getErrorMessage(error)
+      );
     } finally {
       setUsersLoading(false);
-      setUsersRefreshing(false);
     }
   };
 
+  /* =======================================================
+     INITIAL LOAD
+  ======================================================= */
+
   useEffect(() => {
-    loadElectionData();
+    loadElections();
     loadUsers();
   }, []);
 
@@ -1315,116 +1399,107 @@ const ManageElections = () => {
      REFRESH EVERYTHING
   ======================================================= */
 
-  const refreshAll = async () => {
+  const handleRefresh = async () => {
     await Promise.all([
-      loadElectionData(),
-      loadUsers(true),
+      loadElections(),
+      loadUsers(),
     ]);
-
-    toast.success(
-      "Admin data refreshed."
-    );
   };
 
   /* =======================================================
-     FILTERED USERS
+     USER FILTERING
   ======================================================= */
 
   const filteredUsers = useMemo(() => {
     const search =
-      userSearch
-        .trim()
-        .toLowerCase();
+      userSearch.trim().toLowerCase();
 
     return users.filter((user) => {
       const profile =
-        user?.voterProfile || {};
+        user?.voterProfile;
 
       const status =
         getVerificationStatus(user);
 
-      const name = String(
-        profile?.name ||
-          user?.name ||
-          ""
-      ).toLowerCase();
-
-      const email = String(
-        user?.email || ""
-      ).toLowerCase();
-
-      const voterId = String(
-        profile?.voterId || ""
-      ).toLowerCase();
-
-      const matchesSearch =
-        !search ||
-        name.includes(search) ||
-        email.includes(search) ||
-        voterId.includes(search);
-
       const matchesStatus =
-        verificationFilter === "ALL" ||
-        status === verificationFilter;
+        userStatusFilter === "ALL" ||
+        status === userStatusFilter;
 
-      return (
-        matchesSearch &&
-        matchesStatus
+      if (!matchesStatus) {
+        return false;
+      }
+
+      if (!search) {
+        return true;
+      }
+
+      const searchableText = [
+        user?.name,
+        user?.email,
+        user?.voterId,
+        profile?.name,
+        profile?.voterId,
+        profile?.phone,
+        profile?.city,
+        profile?.state,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+
+      return searchableText.includes(
+        search
       );
     });
   }, [
     users,
     userSearch,
-    verificationFilter,
+    userStatusFilter,
   ]);
 
   /* =======================================================
-     USER VERIFICATION STATS
+     USER COUNTS
   ======================================================= */
 
-  const verificationStats = useMemo(() => {
-    let pending = 0;
-    let verified = 0;
-    let rejected = 0;
-    let notSubmitted = 0;
+  const userCounts = useMemo(() => {
+    return users.reduce(
+      (counts, user) => {
+        const status =
+          getVerificationStatus(user);
 
-    users.forEach((user) => {
-      const status =
-        getVerificationStatus(user);
+        if (
+          Object.prototype.hasOwnProperty.call(
+            counts,
+            status
+          )
+        ) {
+          counts[status] += 1;
+        }
 
-      if (status === "PENDING") {
-        pending += 1;
-      } else if (
-        status === "VERIFIED"
-      ) {
-        verified += 1;
-      } else if (
-        status === "REJECTED"
-      ) {
-        rejected += 1;
-      } else {
-        notSubmitted += 1;
+        return counts;
+      },
+      {
+        ALL: users.length,
+        PENDING: 0,
+        VERIFIED: 0,
+        REJECTED: 0,
+        NOT_SUBMITTED: 0,
       }
-    });
-
-    return {
-      total: users.length,
-      pending,
-      verified,
-      rejected,
-      notSubmitted,
-    };
+    );
   }, [users]);
 
   /* =======================================================
-     VOTER VERIFICATION
+     USER VERIFICATION
   ======================================================= */
 
   const handleVoterVerification = async (
     user,
-    status
+    requestedStatus
   ) => {
     const userId = user?._id;
+
+    const profile =
+      user?.voterProfile;
 
     if (!userId) {
       toast.error(
@@ -1433,36 +1508,42 @@ const ManageElections = () => {
       return;
     }
 
-    const profile =
-      user?.voterProfile;
-
-    if (
-      status === "VERIFIED" &&
-      profile?.isComplete !== true &&
-      user?.voterProfileComplete !== true
-    ) {
+    if (!profile) {
       toast.error(
-        "This voter profile is incomplete. Complete the profile before verification."
+        "No voter profile has been submitted by this user."
       );
       return;
     }
 
-    const userName =
-      profile?.name ||
-      user?.name ||
-      user?.email ||
-      "this voter";
+    if (
+      requestedStatus ===
+        "VERIFIED" &&
+      profile.isComplete !== true
+    ) {
+      toast.error(
+        "Voter profile is incomplete. Complete the profile before verification."
+      );
+      return;
+    }
+
+    const actionKey =
+      `${userId}:${requestedStatus}`;
 
     const actionText =
-      status === "VERIFIED"
+      requestedStatus === "VERIFIED"
         ? "verify"
-        : status === "REJECTED"
+        : requestedStatus ===
+          "REJECTED"
         ? "reject"
         : "set this voter to pending";
 
     const confirmed =
       window.confirm(
-        `Are you sure you want to ${actionText} "${userName}"?`
+        `Are you sure you want to ${actionText} "${
+          profile?.name ||
+          user?.name ||
+          "this voter"
+        }"?`
       );
 
     if (!confirmed) {
@@ -1470,105 +1551,61 @@ const ManageElections = () => {
     }
 
     try {
-      setVerificationActionId(
-        `${userId}-${status}`
+      setVerificationActionKey(
+        actionKey
       );
 
-      const response =
-        await API.patch(
-          `/users/${userId}/voter-verification`,
-          {
-            status,
-          }
-        );
-
-      const updatedProfile =
-        response?.data?.profile ||
-        response?.profile;
-
-      setUsers((previousUsers) =>
-        previousUsers.map(
-          (currentUser) => {
-            if (
-              currentUser?._id !==
-              userId
-            ) {
-              return currentUser;
-            }
-
-            return {
-              ...currentUser,
-
-              voterProfile:
-                updatedProfile
-                  ? {
-                      ...(currentUser.voterProfile ||
-                        {}),
-                      ...updatedProfile,
-                    }
-                  : {
-                      ...(currentUser.voterProfile ||
-                        {}),
-                      verificationStatus:
-                        status,
-                      isEligible:
-                        status ===
-                        "VERIFIED",
-                    },
-
-              voterVerificationStatus:
-                updatedProfile?.verificationStatus ||
-                status,
-
-              voterEligible:
-                updatedProfile?.isEligible ??
-                (status ===
-                  "VERIFIED"),
-            };
-          }
-        )
+      await API.patch(
+        `/users/${userId}/voter-verification`,
+        {
+          status: requestedStatus,
+        }
       );
 
-      if (status === "VERIFIED") {
-        toast.success(
-          `${userName} has been verified successfully.`
-        );
-      } else if (
-        status === "REJECTED"
+      if (
+        requestedStatus ===
+        "VERIFIED"
       ) {
         toast.success(
-          `${userName} has been rejected.`
+          "Voter verified successfully."
+        );
+      } else if (
+        requestedStatus ===
+        "REJECTED"
+      ) {
+        toast.success(
+          "Voter verification rejected."
         );
       } else {
         toast.success(
-          `${userName} verification is now pending.`
+          "Voter verification set to pending."
         );
       }
 
-      /*
-       * Refresh from backend so the UI always
-       * reflects the real database state.
-       */
       await loadUsers();
-    } catch (err) {
+    } catch (error) {
       console.error(
         "Voter verification error:",
-        err
+        error
       );
 
       toast.error(
-        getErrorMessage(err)
+        getErrorMessage(error)
       );
     } finally {
-      setVerificationActionId(null);
+      setVerificationActionKey(
+        null
+      );
     }
   };
 
   /* =======================================================
-     ELECTION FORM
+     ELECTION FORM CHANGE
   ======================================================= */
 
-  const handleElectionChange = (event) => {
+  const handleElectionChange = (
+    event
+  ) => {
     const {
       name,
       value,
@@ -1585,23 +1622,31 @@ const ManageElections = () => {
     }));
   };
 
-  const resetElectionForm = () => {
-    setForm({
-      ...INITIAL_ELECTION_FORM,
-    });
+  /* =======================================================
+     RESET ELECTION FORM
+  ======================================================= */
 
+  const resetElectionForm = () => {
+    setForm(
+      INITIAL_ELECTION_FORM
+    );
     setEditId(null);
     setShowForm(false);
+    setElectionError("");
   };
+
+  /* =======================================================
+     OPEN CREATE
+  ======================================================= */
 
   const openCreateForm = () => {
     setEditId(null);
 
-    setForm({
-      ...INITIAL_ELECTION_FORM,
-    });
+    setForm(
+      INITIAL_ELECTION_FORM
+    );
 
-    setError("");
+    setElectionError("");
     setShowForm(true);
 
     window.scrollTo({
@@ -1614,18 +1659,20 @@ const ManageElections = () => {
      CREATE ELECTION
   ======================================================= */
 
-  const handleCreate = async (event) => {
+  const handleCreate = async (
+    event
+  ) => {
     event.preventDefault();
 
     if (!form.title.trim()) {
-      setError(
+      setElectionError(
         "Election title is required."
       );
       return;
     }
 
     if (!form.startDate) {
-      setError(
+      setElectionError(
         "Election start date is required."
       );
       return;
@@ -1636,7 +1683,7 @@ const ManageElections = () => {
       new Date(form.endDate) <=
         new Date(form.startDate)
     ) {
-      setError(
+      setElectionError(
         "End date must be after the start date."
       );
       return;
@@ -1644,148 +1691,47 @@ const ManageElections = () => {
 
     try {
       setSubmitting(true);
-      setError("");
+      setElectionError("");
 
-      const response =
-        await createElection({
-          title: form.title.trim(),
-
-          description:
-            form.description.trim(),
-
-          electionType:
-            form.electionType,
-
-          startDate:
-            form.startDate,
-
-          endDate:
-            form.endDate || undefined,
-
-          bannerImage:
-            form.bannerImage.trim() ||
-            undefined,
-
-          instructions:
-            form.instructions.trim() ||
-            undefined,
-
-          allowResultsBeforeEnd:
-            Boolean(
-              form.allowResultsBeforeEnd
-            ),
-        });
-
-      const createdElection =
-        response?.election ||
-        response?.data?.election ||
-        response?.data ||
-        null;
-
-      const createdElectionId =
-        createdElection?._id;
+      await createElection({
+        title: form.title.trim(),
+        description:
+          form.description.trim(),
+        electionType:
+          form.electionType,
+        startDate:
+          form.startDate,
+        endDate:
+          form.endDate || undefined,
+        bannerImage:
+          form.bannerImage.trim() ||
+          undefined,
+        instructions:
+          form.instructions.trim() ||
+          undefined,
+        allowResultsBeforeEnd:
+          Boolean(
+            form.allowResultsBeforeEnd
+          ),
+      });
 
       toast.success(
         "Election created successfully."
       );
 
-      setForm({
-        ...INITIAL_ELECTION_FORM,
-      });
+      resetElectionForm();
 
-      setShowForm(false);
-      setEditId(null);
-
-      await loadElectionData();
-
-      if (createdElectionId) {
-        setExpandedElection(
-          createdElectionId
-        );
-
-        setShowCandidateForm(
-          createdElectionId
-        );
-
-        setEditingCandidateId(null);
-
-        setCandidateForm({
-          ...INITIAL_CANDIDATE_FORM,
-        });
-
-        setTimeout(() => {
-          const element =
-            document.getElementById(
-              `election-${createdElectionId}`
-            );
-
-          element?.scrollIntoView({
-            behavior: "smooth",
-            block: "center",
-          });
-        }, 250);
-      } else {
-        const refreshed =
-          await getAllElections();
-
-        const refreshedElections =
-          getElectionsFromResponse(
-            refreshed
-          );
-
-        if (refreshedElections.length > 0) {
-          const newest =
-            refreshedElections
-              .slice()
-              .sort(
-                (a, b) =>
-                  new Date(
-                    b.createdAt ||
-                      b.startDate
-                  ) -
-                  new Date(
-                    a.createdAt ||
-                      a.startDate
-                  )
-              )[0];
-
-          if (newest?._id) {
-            setExpandedElection(
-              newest._id
-            );
-
-            setShowCandidateForm(
-              newest._id
-            );
-
-            setCandidateForm({
-              ...INITIAL_CANDIDATE_FORM,
-            });
-
-            setTimeout(() => {
-              const element =
-                document.getElementById(
-                  `election-${newest._id}`
-                );
-
-              element?.scrollIntoView({
-                behavior: "smooth",
-                block: "center",
-              });
-            }, 250);
-          }
-        }
-      }
-    } catch (err) {
+      await loadElections();
+    } catch (error) {
       console.error(
         "Create election error:",
-        err
+        error
       );
 
       const message =
-        getErrorMessage(err);
+        getErrorMessage(error);
 
-      setError(message);
+      setElectionError(message);
       toast.error(message);
     } finally {
       setSubmitting(false);
@@ -1796,8 +1742,19 @@ const ManageElections = () => {
      EDIT ELECTION
   ======================================================= */
 
-  const handleEdit = (election) => {
-    if (isElectionLocked(election)) {
+  const handleEdit = (
+    election
+  ) => {
+    const status =
+      election?.status?.toUpperCase();
+
+    if (
+      [
+        "LIVE",
+        "COMPLETED",
+        "CANCELLED",
+      ].includes(status)
+    ) {
       toast.error(
         "This election cannot be edited in its current state."
       );
@@ -1807,7 +1764,8 @@ const ManageElections = () => {
     setEditId(election._id);
 
     setForm({
-      title: election.title || "",
+      title:
+        election.title || "",
 
       description:
         election.description || "",
@@ -1838,7 +1796,7 @@ const ManageElections = () => {
         ),
     });
 
-    setError("");
+    setElectionError("");
     setShowForm(true);
 
     window.scrollTo({
@@ -1851,20 +1809,22 @@ const ManageElections = () => {
      UPDATE ELECTION
   ======================================================= */
 
-  const handleUpdate = async (event) => {
+  const handleUpdate = async (
+    event
+  ) => {
     event.preventDefault();
 
     if (!editId) return;
 
     if (!form.title.trim()) {
-      setError(
+      setElectionError(
         "Election title is required."
       );
       return;
     }
 
     if (!form.startDate) {
-      setError(
+      setElectionError(
         "Election start date is required."
       );
       return;
@@ -1875,7 +1835,7 @@ const ManageElections = () => {
       new Date(form.endDate) <=
         new Date(form.startDate)
     ) {
-      setError(
+      setElectionError(
         "End date must be after the start date."
       );
       return;
@@ -1883,36 +1843,41 @@ const ManageElections = () => {
 
     try {
       setSubmitting(true);
-      setError("");
+      setElectionError("");
 
-      await updateElection(editId, {
-        title: form.title.trim(),
+      await updateElection(
+        editId,
+        {
+          title:
+            form.title.trim(),
 
-        description:
-          form.description.trim(),
+          description:
+            form.description.trim(),
 
-        electionType:
-          form.electionType,
+          electionType:
+            form.electionType,
 
-        startDate:
-          form.startDate,
+          startDate:
+            form.startDate,
 
-        endDate:
-          form.endDate || undefined,
+          endDate:
+            form.endDate ||
+            undefined,
 
-        bannerImage:
-          form.bannerImage.trim() ||
-          undefined,
+          bannerImage:
+            form.bannerImage.trim() ||
+            undefined,
 
-        instructions:
-          form.instructions.trim() ||
-          undefined,
+          instructions:
+            form.instructions.trim() ||
+            undefined,
 
-        allowResultsBeforeEnd:
-          Boolean(
-            form.allowResultsBeforeEnd
-          ),
-      });
+          allowResultsBeforeEnd:
+            Boolean(
+              form.allowResultsBeforeEnd
+            ),
+        }
+      );
 
       toast.success(
         "Election updated successfully."
@@ -1920,17 +1885,17 @@ const ManageElections = () => {
 
       resetElectionForm();
 
-      await loadElectionData();
-    } catch (err) {
+      await loadElections();
+    } catch (error) {
       console.error(
         "Update election error:",
-        err
+        error
       );
 
       const message =
-        getErrorMessage(err);
+        getErrorMessage(error);
 
-      setError(message);
+      setElectionError(message);
       toast.error(message);
     } finally {
       setSubmitting(false);
@@ -1941,17 +1906,24 @@ const ManageElections = () => {
      DELETE ELECTION
   ======================================================= */
 
-  const handleDelete = async (election) => {
+  const handleDelete = async (
+    election
+  ) => {
     const confirmed =
       window.confirm(
-        `Delete "${election?.title || "this election"}"?`
+        `Delete "${
+          election?.title ||
+          "this election"
+        }"?`
       );
 
     if (!confirmed) return;
 
     try {
-      setActionId(election._id);
-      setError("");
+      setActionId(
+        election._id
+      );
+      setElectionError("");
 
       await deleteElection(
         election._id
@@ -1968,24 +1940,17 @@ const ManageElections = () => {
         setExpandedElection(null);
       }
 
-      if (
-        showCandidateForm ===
-        election._id
-      ) {
-        setShowCandidateForm(null);
-      }
-
-      await loadElectionData();
-    } catch (err) {
+      await loadElections();
+    } catch (error) {
       console.error(
         "Delete election error:",
-        err
+        error
       );
 
       const message =
-        getErrorMessage(err);
+        getErrorMessage(error);
 
-      setError(message);
+      setElectionError(message);
       toast.error(message);
     } finally {
       setActionId(null);
@@ -1993,20 +1958,27 @@ const ManageElections = () => {
   };
 
   /* =======================================================
-     PUBLISH
+     PUBLISH ELECTION
   ======================================================= */
 
-  const handlePublish = async (election) => {
+  const handlePublish = async (
+    election
+  ) => {
     const confirmed =
       window.confirm(
-        `Publish "${election?.title || "this election"}"?`
+        `Publish "${
+          election?.title ||
+          "this election"
+        }"?`
       );
 
     if (!confirmed) return;
 
     try {
-      setActionId(election._id);
-      setError("");
+      setActionId(
+        election._id
+      );
+      setElectionError("");
 
       await publishElection(
         election._id
@@ -2016,24 +1988,17 @@ const ManageElections = () => {
         "Election published successfully."
       );
 
-      if (
-        showCandidateForm ===
-        election._id
-      ) {
-        setShowCandidateForm(null);
-      }
-
-      await loadElectionData();
-    } catch (err) {
+      await loadElections();
+    } catch (error) {
       console.error(
         "Publish election error:",
-        err
+        error
       );
 
       const message =
-        getErrorMessage(err);
+        getErrorMessage(error);
 
-      setError(message);
+      setElectionError(message);
       toast.error(message);
     } finally {
       setActionId(null);
@@ -2044,17 +2009,24 @@ const ManageElections = () => {
      CANCEL ELECTION
   ======================================================= */
 
-  const handleCancel = async (election) => {
+  const handleCancel = async (
+    election
+  ) => {
     const confirmed =
       window.confirm(
-        `Cancel "${election?.title || "this election"}"?`
+        `Cancel "${
+          election?.title ||
+          "this election"
+        }"?`
       );
 
     if (!confirmed) return;
 
     try {
-      setActionId(election._id);
-      setError("");
+      setActionId(
+        election._id
+      );
+      setElectionError("");
 
       await cancelElection(
         election._id
@@ -2064,24 +2036,17 @@ const ManageElections = () => {
         "Election cancelled successfully."
       );
 
-      if (
-        showCandidateForm ===
-        election._id
-      ) {
-        setShowCandidateForm(null);
-      }
-
-      await loadElectionData();
-    } catch (err) {
+      await loadElections();
+    } catch (error) {
       console.error(
         "Cancel election error:",
-        err
+        error
       );
 
       const message =
-        getErrorMessage(err);
+        getErrorMessage(error);
 
-      setError(message);
+      setElectionError(message);
       toast.error(message);
     } finally {
       setActionId(null);
@@ -2089,30 +2054,14 @@ const ManageElections = () => {
   };
 
   /* =======================================================
-     CANDIDATE FORM
+     OPEN CANDIDATE FORM
   ======================================================= */
 
   const openCandidateForm = (
     electionId,
     candidate = null
   ) => {
-    const election =
-      elections.find(
-        (item) =>
-          item._id === electionId
-      );
-
-    if (
-      election &&
-      isElectionLocked(election)
-    ) {
-      toast.error(
-        "Candidates cannot be changed after the election becomes live, completed, or cancelled."
-      );
-      return;
-    }
-
-    setError("");
+    setElectionError("");
 
     if (candidate) {
       setEditingCandidateId(
@@ -2120,44 +2069,65 @@ const ManageElections = () => {
       );
 
       setCandidateForm({
-        name: candidate.name || "",
-        party: candidate.party || "",
-        symbol: candidate.symbol || "",
-        photo: candidate.photo || "",
+        name:
+          candidate.name || "",
+
+        party:
+          candidate.party || "",
+
+        symbol:
+          candidate.symbol || "",
+
+        photo:
+          candidate.photo || "",
+
         manifesto:
           candidate.manifesto || "",
+
         biography:
           candidate.biography || "",
+
         experience:
           candidate.experience || "",
+
         position:
           candidate.position || "",
+
         isActive:
           candidate.isActive !== false,
       });
     } else {
-      setEditingCandidateId(null);
+      setEditingCandidateId(
+        null
+      );
 
-      setCandidateForm({
-        ...INITIAL_CANDIDATE_FORM,
-      });
+      setCandidateForm(
+        INITIAL_CANDIDATE_FORM
+      );
     }
-
-    setExpandedElection(
-      electionId
-    );
 
     setShowCandidateForm(
       electionId
     );
+
+    setExpandedElection(
+      electionId
+    );
   };
 
-  const resetCandidateForm = () => {
-    setCandidateForm({
-      ...INITIAL_CANDIDATE_FORM,
-    });
+  /* =======================================================
+     RESET CANDIDATE FORM
+  ======================================================= */
 
-    setEditingCandidateId(null);
+  const resetCandidateForm = () => {
+    setCandidateForm(
+      INITIAL_CANDIDATE_FORM
+    );
+
+    setEditingCandidateId(
+      null
+    );
+
     setShowCandidateForm(null);
   };
 
@@ -2165,209 +2135,173 @@ const ManageElections = () => {
      CREATE / UPDATE CANDIDATE
   ======================================================= */
 
-  const handleCandidateSubmit = async (
-    event,
-    electionId
-  ) => {
-    event.preventDefault();
+  const handleCandidateSubmit =
+    async (
+      event,
+      electionId
+    ) => {
+      event.preventDefault();
 
-    if (!candidateForm.name.trim()) {
-      toast.error(
-        "Candidate name is required."
-      );
-      return;
-    }
-
-    const election =
-      elections.find(
-        (item) =>
-          item._id === electionId
-      );
-
-    if (
-      election &&
-      isElectionLocked(election)
-    ) {
-      toast.error(
-        "Candidates cannot be changed in this election state."
-      );
-      return;
-    }
-
-    try {
-      setCandidateSubmitting(true);
-
-      const payload = {
-        election: electionId,
-
-        name:
-          candidateForm.name.trim(),
-
-        party:
-          candidateForm.party.trim(),
-
-        symbol:
-          candidateForm.symbol.trim(),
-
-        photo:
-          candidateForm.photo.trim(),
-
-        manifesto:
-          candidateForm.manifesto.trim(),
-
-        biography:
-          candidateForm.biography.trim(),
-
-        experience:
-          candidateForm.experience.trim(),
-
-        position:
-          candidateForm.position.trim(),
-
-        isActive:
-          Boolean(
-            candidateForm.isActive
-          ),
-      };
-
-      if (editingCandidateId) {
-        const updatePayload = {
-          name: payload.name,
-          party: payload.party,
-          symbol: payload.symbol,
-          photo: payload.photo,
-          manifesto:
-            payload.manifesto,
-          biography:
-            payload.biography,
-          experience:
-            payload.experience,
-          position:
-            payload.position,
-          isActive:
-            payload.isActive,
-        };
-
-        await updateCandidate(
-          editingCandidateId,
-          updatePayload
+      if (
+        !candidateForm.name.trim()
+      ) {
+        toast.error(
+          "Candidate name is required."
         );
-
-        toast.success(
-          "Candidate updated successfully."
-        );
-      } else {
-        await createCandidate(
-          payload
-        );
-
-        toast.success(
-          "Candidate added successfully."
-        );
+        return;
       }
 
-      setEditingCandidateId(null);
+      try {
+        setCandidateSubmitting(
+          true
+        );
 
-      setCandidateForm({
-        ...INITIAL_CANDIDATE_FORM,
-      });
+        const payload = {
+          election:
+            electionId,
 
-      setShowCandidateForm(
-        electionId
-      );
+          name:
+            candidateForm.name.trim(),
 
-      setExpandedElection(
-        electionId
-      );
+          party:
+            candidateForm.party.trim(),
 
-      await loadElectionData();
-    } catch (err) {
-      console.error(
-        "Candidate save error:",
-        err
-      );
+          symbol:
+            candidateForm.symbol.trim(),
 
-      toast.error(
-        getErrorMessage(err)
-      );
-    } finally {
-      setCandidateSubmitting(false);
-    }
-  };
+          photo:
+            candidateForm.photo.trim(),
+
+          manifesto:
+            candidateForm.manifesto.trim(),
+
+          biography:
+            candidateForm.biography.trim(),
+
+          experience:
+            candidateForm.experience.trim(),
+
+          position:
+            candidateForm.position.trim(),
+
+          isActive:
+            Boolean(
+              candidateForm.isActive
+            ),
+        };
+
+        if (editingCandidateId) {
+          await updateCandidate(
+            editingCandidateId,
+            {
+              name:
+                payload.name,
+
+              party:
+                payload.party,
+
+              symbol:
+                payload.symbol,
+
+              photo:
+                payload.photo,
+
+              manifesto:
+                payload.manifesto,
+
+              biography:
+                payload.biography,
+
+              experience:
+                payload.experience,
+
+              position:
+                payload.position,
+
+              isActive:
+                payload.isActive,
+            }
+          );
+
+          toast.success(
+            "Candidate updated successfully."
+          );
+        } else {
+          await createCandidate(
+            payload
+          );
+
+          toast.success(
+            "Candidate added successfully."
+          );
+        }
+
+        resetCandidateForm();
+
+        await loadElections();
+      } catch (error) {
+        console.error(
+          "Candidate save error:",
+          error
+        );
+
+        toast.error(
+          getErrorMessage(error)
+        );
+      } finally {
+        setCandidateSubmitting(
+          false
+        );
+      }
+    };
 
   /* =======================================================
      DELETE CANDIDATE
   ======================================================= */
 
-  const handleCandidateDelete = async (
-    candidate
-  ) => {
-    const election =
-      elections.find(
-        (item) =>
-          item._id ===
-          candidate?.election
-      );
+  const handleCandidateDelete =
+    async (
+      candidate
+    ) => {
+      const confirmed =
+        window.confirm(
+          `Delete candidate "${
+            candidate?.name ||
+            "this candidate"
+          }"?`
+        );
 
-    const electionId =
-      typeof candidate?.election ===
-      "object"
-        ? candidate.election?._id
-        : candidate?.election;
+      if (!confirmed) return;
 
-    const parentElection =
-      election ||
-      elections.find(
-        (item) =>
-          item._id === electionId
-      );
+      try {
+        setCandidateActionId(
+          candidate._id
+        );
 
-    if (
-      parentElection &&
-      isElectionLocked(
-        parentElection
-      )
-    ) {
-      toast.error(
-        "Candidates cannot be deleted in this election state."
-      );
-      return;
-    }
+        await deleteCandidate(
+          candidate._id
+        );
 
-    const confirmed =
-      window.confirm(
-        `Delete candidate "${candidate?.name || "this candidate"}"?`
-      );
+        toast.success(
+          "Candidate deleted successfully."
+        );
 
-    if (!confirmed) return;
+        await loadElections();
+      } catch (error) {
+        console.error(
+          "Delete candidate error:",
+          error
+        );
 
-    try {
-      setCandidateActionId(
-        candidate._id
-      );
-
-      await deleteCandidate(
-        candidate._id
-      );
-
-      toast.success(
-        "Candidate deleted successfully."
-      );
-
-      await loadElectionData();
-    } catch (err) {
-      console.error(
-        "Delete candidate error:",
-        err
-      );
-
-      toast.error(
-        getErrorMessage(err)
-      );
-    } finally {
-      setCandidateActionId(null);
-    }
-  };
+        toast.error(
+          getErrorMessage(error)
+        );
+      } finally {
+        setCandidateActionId(
+          null
+        );
+      }
+    };
 
   /* =======================================================
      TOGGLE CANDIDATES
@@ -2382,13 +2316,6 @@ const ManageElections = () => {
           ? null
           : electionId
     );
-
-    if (
-      expandedElection ===
-      electionId
-    ) {
-      setShowCandidateForm(null);
-    }
   };
 
   /* =======================================================
@@ -2398,6 +2325,7 @@ const ManageElections = () => {
   return (
     <div className="min-h-screen bg-slate-950 px-4 py-6 text-white sm:px-6 lg:px-8">
       <div className="mx-auto max-w-7xl">
+
         {/* =================================================
             HEADER
         ================================================== */}
@@ -2411,32 +2339,33 @@ const ManageElections = () => {
             opacity: 1,
             y: 0,
           }}
-          className="mb-8 flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between"
+          className="mb-8"
         >
-          <div>
-            <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1.5 text-xs font-semibold text-emerald-300">
-              <ShieldCheck size={14} />
-              Administration
+          <div className="mb-6 flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1.5 text-xs font-semibold text-emerald-300">
+                <ShieldCheck
+                  size={14}
+                />
+                Admin Control Center
+              </div>
+
+              <h1 className="text-3xl font-black tracking-tight sm:text-4xl">
+                Admin Dashboard
+              </h1>
+
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500 sm:text-base">
+                Manage voter verification and
+                elections from one secure place.
+              </p>
             </div>
 
-            <h1 className="text-3xl font-black tracking-tight sm:text-4xl">
-              Admin Control Center
-            </h1>
-
-            <p className="mt-2 max-w-2xl text-sm text-slate-500 sm:text-base">
-              Manage elections, candidates, voting
-              options and voter verification from one
-              place.
-            </p>
-          </div>
-
-          <div className="flex flex-col gap-3 sm:flex-row">
             <button
               type="button"
-              onClick={refreshAll}
+              onClick={handleRefresh}
               disabled={
                 loading ||
-                usersRefreshing
+                usersLoading
               }
               className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-semibold text-slate-300 transition hover:border-emerald-400/20 hover:bg-white/[0.07] disabled:opacity-50"
             >
@@ -2444,1305 +2373,1634 @@ const ManageElections = () => {
                 size={17}
                 className={
                   loading ||
-                  usersRefreshing
+                  usersLoading
                     ? "animate-spin"
                     : ""
                 }
               />
 
-              {loading ||
-              usersRefreshing
-                ? "Refreshing..."
-                : "Refresh All"}
-            </button>
-
-            <button
-              type="button"
-              onClick={openCreateForm}
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 px-5 py-3 text-sm font-bold text-white shadow-lg shadow-emerald-500/20 transition hover:-translate-y-0.5 hover:shadow-emerald-500/30"
-            >
-              <Plus size={18} />
-              Create Election
+              Refresh
             </button>
           </div>
-        </motion.div>
 
-        {/* =================================================
-            ERROR
-        ================================================== */}
+          {/* =================================================
+              MAIN TWO BUTTONS
+          ================================================== */}
 
-        <AnimatePresence>
-          {error && (
-            <motion.div
-              initial={{
-                opacity: 0,
-                y: -10,
-              }}
-              animate={{
-                opacity: 1,
-                y: 0,
-              }}
-              exit={{
-                opacity: 0,
-                y: -10,
-              }}
-              className="mb-5 flex items-start gap-3 rounded-2xl border border-red-400/20 bg-red-500/10 p-4 text-sm text-red-300"
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <button
+              type="button"
+              onClick={() =>
+                setActiveSection(
+                  "users"
+                )
+              }
+              className={`group relative overflow-hidden rounded-2xl border p-5 text-left transition-all duration-300 ${
+                activeSection ===
+                "users"
+                  ? "border-emerald-400/30 bg-gradient-to-br from-emerald-500/15 to-teal-500/10 shadow-xl shadow-emerald-500/5"
+                  : "border-white/10 bg-white/[0.035] hover:border-emerald-400/20 hover:bg-white/[0.05]"
+              }`}
             >
-              <AlertCircle
-                size={19}
-                className="mt-0.5 shrink-0"
-              />
-
-              <span className="flex-1">
-                {error}
-              </span>
-
-              <button
-                type="button"
-                onClick={() =>
-                  setError("")
-                }
-                className="shrink-0 text-red-400 transition hover:text-red-200"
-              >
-                <X size={17} />
-              </button>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* =================================================
-            VOTER VERIFICATION
-        ================================================== */}
-
-        <motion.section
-          initial={{
-            opacity: 0,
-            y: 20,
-          }}
-          animate={{
-            opacity: 1,
-            y: 0,
-          }}
-          transition={{
-            delay: 0.05,
-          }}
-          className="mb-10"
-        >
-          {/* Section header */}
-          <div className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-            <div>
-              <div className="mb-2 flex items-center gap-2">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/10">
-                  <UserCheck
-                    size={19}
-                    className="text-emerald-400"
+              <div className="flex items-center gap-4">
+                <div
+                  className={`flex h-12 w-12 items-center justify-center rounded-2xl transition ${
+                    activeSection ===
+                    "users"
+                      ? "bg-emerald-500 text-white"
+                      : "bg-emerald-500/10 text-emerald-400"
+                  }`}
+                >
+                  <Users
+                    size={22}
                   />
                 </div>
 
-                <div>
-                  <h2 className="text-xl font-bold text-white sm:text-2xl">
-                    Voter Verification
-                  </h2>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center justify-between gap-3">
+                    <h2 className="text-base font-bold text-white sm:text-lg">
+                      Manage Users
+                    </h2>
 
-                  <p className="mt-0.5 text-xs text-slate-600">
-                    Verify voter profiles before they
-                    can cast votes.
+                    <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[10px] font-bold text-slate-400">
+                      {users.length}
+                    </span>
+                  </div>
+
+                  <p className="mt-1 text-xs text-slate-500 sm:text-sm">
+                    Verify voter profiles and manage
+                    voter eligibility.
                   </p>
                 </div>
               </div>
-            </div>
 
-            <button
-              type="button"
-              onClick={() =>
-                loadUsers(true)
-              }
-              disabled={usersRefreshing}
-              className="inline-flex w-fit items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-xs font-bold text-slate-300 transition hover:border-emerald-400/20 hover:bg-emerald-500/5 hover:text-emerald-300 disabled:opacity-50"
-            >
-              <RefreshCw
-                size={15}
-                className={
-                  usersRefreshing
-                    ? "animate-spin"
-                    : ""
-                }
-              />
-
-              Refresh Voters
-            </button>
-          </div>
-
-          {/* Stats */}
-          <div className="mb-5 grid grid-cols-2 gap-3 md:grid-cols-5">
-            <button
-              type="button"
-              onClick={() =>
-                setVerificationFilter(
-                  "ALL"
-                )
-              }
-              className={`rounded-2xl border p-4 text-left transition ${
-                verificationFilter ===
-                "ALL"
-                  ? "border-emerald-400/30 bg-emerald-500/10"
-                  : "border-white/10 bg-white/[0.03] hover:border-white/15"
-              }`}
-            >
-              <Users
-                size={18}
-                className="text-slate-400"
-              />
-
-              <p className="mt-3 text-xl font-black text-white">
-                {verificationStats.total}
-              </p>
-
-              <p className="text-xs text-slate-500">
-                All Users
-              </p>
-            </button>
-
-            <button
-              type="button"
-              onClick={() =>
-                setVerificationFilter(
-                  "PENDING"
-                )
-              }
-              className={`rounded-2xl border p-4 text-left transition ${
-                verificationFilter ===
-                "PENDING"
-                  ? "border-amber-400/30 bg-amber-500/10"
-                  : "border-white/10 bg-white/[0.03] hover:border-white/15"
-              }`}
-            >
-              <Clock3
-                size={18}
-                className="text-amber-400"
-              />
-
-              <p className="mt-3 text-xl font-black text-white">
-                {verificationStats.pending}
-              </p>
-
-              <p className="text-xs text-slate-500">
-                Pending
-              </p>
-            </button>
-
-            <button
-              type="button"
-              onClick={() =>
-                setVerificationFilter(
-                  "VERIFIED"
-                )
-              }
-              className={`rounded-2xl border p-4 text-left transition ${
-                verificationFilter ===
-                "VERIFIED"
-                  ? "border-emerald-400/30 bg-emerald-500/10"
-                  : "border-white/10 bg-white/[0.03] hover:border-white/15"
-              }`}
-            >
-              <CheckCircle2
-                size={18}
-                className="text-emerald-400"
-              />
-
-              <p className="mt-3 text-xl font-black text-white">
-                {verificationStats.verified}
-              </p>
-
-              <p className="text-xs text-slate-500">
-                Verified
-              </p>
-            </button>
-
-            <button
-              type="button"
-              onClick={() =>
-                setVerificationFilter(
-                  "REJECTED"
-                )
-              }
-              className={`rounded-2xl border p-4 text-left transition ${
-                verificationFilter ===
-                "REJECTED"
-                  ? "border-red-400/30 bg-red-500/10"
-                  : "border-white/10 bg-white/[0.03] hover:border-white/15"
-              }`}
-            >
-              <XCircle
-                size={18}
-                className="text-red-400"
-              />
-
-              <p className="mt-3 text-xl font-black text-white">
-                {verificationStats.rejected}
-              </p>
-
-              <p className="text-xs text-slate-500">
-                Rejected
-              </p>
-            </button>
-
-            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-              <ShieldCheck
-                size={18}
-                className="text-teal-400"
-              />
-
-              <p className="mt-3 text-xl font-black text-white">
-                {verificationStats.notSubmitted}
-              </p>
-
-              <p className="text-xs text-slate-500">
-                Not Submitted
-              </p>
-            </div>
-          </div>
-
-          {/* Search */}
-          <div className="mb-5 flex flex-col gap-3 md:flex-row">
-            <div className="relative flex-1">
-              <Search
-                size={17}
-                className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-600"
-              />
-
-              <input
-                type="search"
-                value={userSearch}
-                onChange={(event) =>
-                  setUserSearch(
-                    event.target.value
-                  )
-                }
-                placeholder="Search by name, email or voter ID..."
-                className="w-full rounded-xl border border-white/10 bg-white/[0.04] py-3 pl-11 pr-4 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-emerald-400/30 focus:ring-2 focus:ring-emerald-500/10"
-              />
-            </div>
-
-            <div className="relative">
-              <select
-                value={
-                  verificationFilter
-                }
-                onChange={(event) =>
-                  setVerificationFilter(
-                    event.target.value
-                  )
-                }
-                className="w-full appearance-none rounded-xl border border-white/10 bg-slate-900 px-4 py-3 pr-10 text-sm font-medium text-slate-300 outline-none focus:border-emerald-400/30 md:w-52"
-              >
-                <option value="ALL">
-                  All Statuses
-                </option>
-
-                {VERIFICATION_STATUSES.map(
-                  (status) => (
-                    <option
-                      key={status}
-                      value={status}
-                    >
-                      {status}
-                    </option>
-                  )
-                )}
-              </select>
-
-              <ChevronDown
-                size={16}
-                className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-600"
-              />
-            </div>
-          </div>
-
-          {/* Users */}
-          {usersLoading ? (
-            <div className="flex min-h-[280px] items-center justify-center rounded-3xl border border-white/10 bg-white/[0.03]">
-              <div className="text-center">
-                <Loader2
-                  size={32}
-                  className="mx-auto animate-spin text-emerald-400"
+              {activeSection ===
+                "users" && (
+                <motion.div
+                  layoutId="activeAdminTab"
+                  className="absolute inset-x-5 bottom-0 h-0.5 rounded-full bg-gradient-to-r from-emerald-400 to-teal-400"
                 />
+              )}
+            </button>
 
-                <p className="mt-3 text-sm text-slate-500">
-                  Loading voter profiles...
-                </p>
+            <button
+              type="button"
+              onClick={() =>
+                setActiveSection(
+                  "elections"
+                )
+              }
+              className={`group relative overflow-hidden rounded-2xl border p-5 text-left transition-all duration-300 ${
+                activeSection ===
+                "elections"
+                  ? "border-teal-400/30 bg-gradient-to-br from-teal-500/15 to-emerald-500/10 shadow-xl shadow-teal-500/5"
+                  : "border-white/10 bg-white/[0.035] hover:border-teal-400/20 hover:bg-white/[0.05]"
+              }`}
+            >
+              <div className="flex items-center gap-4">
+                <div
+                  className={`flex h-12 w-12 items-center justify-center rounded-2xl transition ${
+                    activeSection ===
+                    "elections"
+                      ? "bg-teal-500 text-white"
+                      : "bg-teal-500/10 text-teal-400"
+                  }`}
+                >
+                  <FileText
+                    size={22}
+                  />
+                </div>
+
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center justify-between gap-3">
+                    <h2 className="text-base font-bold text-white sm:text-lg">
+                      Manage Elections
+                    </h2>
+
+                    <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[10px] font-bold text-slate-400">
+                      {elections.length}
+                    </span>
+                  </div>
+
+                  <p className="mt-1 text-xs text-slate-500 sm:text-sm">
+                    Create elections and manage candidates
+                    or voting options.
+                  </p>
+                </div>
               </div>
-            </div>
-          ) : filteredUsers.length === 0 ? (
-            <div className="rounded-3xl border border-dashed border-white/10 bg-white/[0.02] p-10 text-center">
-              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-500/10 text-emerald-400">
-                <Users size={25} />
-              </div>
 
-              <h3 className="mt-4 font-bold text-white">
-                No voters found
-              </h3>
-
-              <p className="mt-2 text-sm text-slate-600">
-                No users match the selected search or
-                verification status.
-              </p>
-            </div>
-          ) : (
-            <div className="grid gap-4">
-              <AnimatePresence>
-                {filteredUsers.map(
-                  (user) => (
-                    <VoterVerificationCard
-                      key={user._id}
-                      user={user}
-                      actionId={
-                        verificationActionId
-                      }
-                      onVerificationChange={
-                        handleVoterVerification
-                      }
-                    />
-                  )
-                )}
-              </AnimatePresence>
-            </div>
-          )}
-        </motion.section>
-
-        {/* =================================================
-            DIVIDER
-        ================================================== */}
-
-        <div className="mb-10 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
-
-        {/* =================================================
-            ELECTION MANAGEMENT HEADER
-        ================================================== */}
-
-        <motion.div
-          initial={{
-            opacity: 0,
-            y: 20,
-          }}
-          animate={{
-            opacity: 1,
-            y: 0,
-          }}
-          className="mb-8 flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between"
-        >
-          <div>
-            <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1.5 text-xs font-semibold text-emerald-300">
-              <FileText size={14} />
-              Election Management
-            </div>
-
-            <h2 className="text-2xl font-black tracking-tight sm:text-3xl">
-              Manage Elections
-            </h2>
-
-            <p className="mt-2 max-w-2xl text-sm text-slate-500">
-              Create elections, add unlimited
-              candidates or voting options, and manage
-              the complete election lifecycle.
-            </p>
+              {activeSection ===
+                "elections" && (
+                <motion.div
+                  layoutId="activeAdminTab"
+                  className="absolute inset-x-5 bottom-0 h-0.5 rounded-full bg-gradient-to-r from-teal-400 to-emerald-400"
+                />
+              )}
+            </button>
           </div>
         </motion.div>
 
         {/* =================================================
-            CREATE / UPDATE ELECTION FORM
+            USERS SECTION
         ================================================== */}
 
-        <AnimatePresence>
-          {showForm && (
-            <motion.div
+        <AnimatePresence mode="wait">
+          {activeSection ===
+            "users" && (
+            <motion.section
+              key="users"
               initial={{
                 opacity: 0,
-                height: 0,
-                y: -10,
+                x: -15,
               }}
               animate={{
                 opacity: 1,
-                height: "auto",
-                y: 0,
+                x: 0,
               }}
               exit={{
                 opacity: 0,
-                height: 0,
-                y: -10,
+                x: 15,
               }}
-              className="mb-8 overflow-hidden"
+              transition={{
+                duration: 0.2,
+              }}
             >
-              <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-5 shadow-2xl backdrop-blur-xl sm:p-7">
-                <div className="mb-6 flex items-start justify-between gap-4">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/10">
-                        <FileText
-                          size={19}
-                          className="text-emerald-400"
-                        />
-                      </div>
+              {/* USER HEADER */}
 
-                      <h2 className="text-xl font-bold sm:text-2xl">
-                        {editId
-                          ? "Update Election"
-                          : "Create New Election"}
-                      </h2>
-                    </div>
+              <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <UserCheck
+                      size={21}
+                      className="text-emerald-400"
+                    />
 
-                    <p className="mt-2 text-sm text-slate-500">
-                      {editId
-                        ? "Update the election configuration."
-                        : "Configure the election first. After creation, candidate management will open automatically."}
-                    </p>
+                    <h2 className="text-2xl font-black text-white">
+                      Voter Verification
+                    </h2>
+                  </div>
+
+                  <p className="mt-1 text-sm text-slate-500">
+                    Review submitted voter profiles and
+                    update their verification status.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={
+                    loadUsers
+                  }
+                  disabled={
+                    usersLoading
+                  }
+                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm font-semibold text-slate-300 transition hover:border-emerald-400/20 hover:bg-white/[0.07] disabled:opacity-50"
+                >
+                  <RefreshCw
+                    size={16}
+                    className={
+                      usersLoading
+                        ? "animate-spin"
+                        : ""
+                    }
+                  />
+
+                  Refresh Users
+                </button>
+              </div>
+
+              {/* USER COUNTS */}
+
+              <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setUserStatusFilter(
+                      "PENDING"
+                    )
+                  }
+                  className={`rounded-2xl border p-4 text-left transition ${
+                    userStatusFilter ===
+                    "PENDING"
+                      ? "border-amber-400/30 bg-amber-500/10"
+                      : "border-white/10 bg-white/[0.03] hover:bg-white/[0.05]"
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <Clock3
+                      size={18}
+                      className="text-amber-400"
+                    />
+
+                    <span className="text-2xl font-black text-white">
+                      {
+                        userCounts.PENDING
+                      }
+                    </span>
+                  </div>
+
+                  <p className="mt-2 text-xs font-semibold text-slate-500">
+                    Pending
+                  </p>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    setUserStatusFilter(
+                      "VERIFIED"
+                    )
+                  }
+                  className={`rounded-2xl border p-4 text-left transition ${
+                    userStatusFilter ===
+                    "VERIFIED"
+                      ? "border-emerald-400/30 bg-emerald-500/10"
+                      : "border-white/10 bg-white/[0.03] hover:bg-white/[0.05]"
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <CheckCircle2
+                      size={18}
+                      className="text-emerald-400"
+                    />
+
+                    <span className="text-2xl font-black text-white">
+                      {
+                        userCounts.VERIFIED
+                      }
+                    </span>
+                  </div>
+
+                  <p className="mt-2 text-xs font-semibold text-slate-500">
+                    Verified
+                  </p>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    setUserStatusFilter(
+                      "REJECTED"
+                    )
+                  }
+                  className={`rounded-2xl border p-4 text-left transition ${
+                    userStatusFilter ===
+                    "REJECTED"
+                      ? "border-red-400/30 bg-red-500/10"
+                      : "border-white/10 bg-white/[0.03] hover:bg-white/[0.05]"
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <UserX
+                      size={18}
+                      className="text-red-400"
+                    />
+
+                    <span className="text-2xl font-black text-white">
+                      {
+                        userCounts.REJECTED
+                      }
+                    </span>
+                  </div>
+
+                  <p className="mt-2 text-xs font-semibold text-slate-500">
+                    Rejected
+                  </p>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    setUserStatusFilter(
+                      "NOT_SUBMITTED"
+                    )
+                  }
+                  className={`rounded-2xl border p-4 text-left transition ${
+                    userStatusFilter ===
+                    "NOT_SUBMITTED"
+                      ? "border-slate-400/30 bg-slate-500/10"
+                      : "border-white/10 bg-white/[0.03] hover:bg-white/[0.05]"
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <Users
+                      size={18}
+                      className="text-slate-400"
+                    />
+
+                    <span className="text-2xl font-black text-white">
+                      {
+                        userCounts.NOT_SUBMITTED
+                      }
+                    </span>
+                  </div>
+
+                  <p className="mt-2 text-xs font-semibold text-slate-500">
+                    No Profile
+                  </p>
+                </button>
+              </div>
+
+              {/* SEARCH / FILTER */}
+
+              <div className="mb-6 rounded-3xl border border-white/10 bg-white/[0.035] p-4 shadow-xl backdrop-blur-xl sm:p-5">
+                <div className="grid gap-3 md:grid-cols-[1fr_220px_auto]">
+                  <div className="relative">
+                    <Search
+                      size={17}
+                      className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-600"
+                    />
+
+                    <input
+                      type="text"
+                      value={userSearch}
+                      onChange={(event) =>
+                        setUserSearch(
+                          event.target.value
+                        )
+                      }
+                      placeholder="Search by name, email, voter ID, phone..."
+                      className="w-full rounded-xl border border-white/10 bg-slate-900/70 py-3 pl-11 pr-4 text-sm text-white outline-none placeholder:text-slate-600 focus:border-emerald-400/40 focus:ring-2 focus:ring-emerald-500/10"
+                    />
+                  </div>
+
+                  <div className="relative">
+                    <select
+                      value={
+                        userStatusFilter
+                      }
+                      onChange={(event) =>
+                        setUserStatusFilter(
+                          event.target.value
+                        )
+                      }
+                      className="w-full appearance-none rounded-xl border border-white/10 bg-slate-900/70 px-4 py-3 text-sm font-semibold text-white outline-none focus:border-emerald-400/40"
+                    >
+                      <option
+                        value="ALL"
+                        className="bg-slate-900"
+                      >
+                        All Users
+                      </option>
+
+                      {VERIFICATION_STATUSES.map(
+                        (status) => (
+                          <option
+                            key={status}
+                            value={status}
+                            className="bg-slate-900"
+                          >
+                            {getVerificationStyle(
+                              status
+                            ).label}
+                          </option>
+                        )
+                      )}
+                    </select>
+
+                    <ChevronDown
+                      size={16}
+                      className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-slate-600"
+                    />
                   </div>
 
                   <button
                     type="button"
-                    onClick={
-                      resetElectionForm
-                    }
-                    disabled={submitting}
-                    className="rounded-xl border border-white/10 p-2 text-slate-400 transition hover:bg-white/5 hover:text-white disabled:opacity-50"
+                    onClick={() => {
+                      setUserSearch("");
+                      setUserStatusFilter(
+                        "ALL"
+                      );
+                    }}
+                    className="rounded-xl border border-white/10 px-4 py-3 text-sm font-semibold text-slate-400 transition hover:bg-white/5 hover:text-white"
                   >
-                    <X size={19} />
+                    Clear
                   </button>
                 </div>
-
-                <form
-                  onSubmit={
-                    editId
-                      ? handleUpdate
-                      : handleCreate
-                  }
-                  className="space-y-5"
-                >
-                  <div>
-                    <FieldLabel required>
-                      Election Title
-                    </FieldLabel>
-
-                    <Input
-                      name="title"
-                      value={form.title}
-                      onChange={
-                        handleElectionChange
-                      }
-                      placeholder="Enter election title"
-                      disabled={submitting}
-                    />
-                  </div>
-
-                  <div>
-                    <FieldLabel required>
-                      Election Type
-                    </FieldLabel>
-
-                    <div className="relative">
-                      <select
-                        name="electionType"
-                        value={
-                          form.electionType
-                        }
-                        onChange={
-                          handleElectionChange
-                        }
-                        disabled={submitting}
-                        className="w-full appearance-none rounded-xl border border-white/10 bg-slate-900/70 px-4 py-3 text-sm text-white outline-none transition focus:border-emerald-400/40 focus:ring-2 focus:ring-emerald-500/10 disabled:opacity-50"
-                      >
-                        {ELECTION_TYPES.map(
-                          (type) => (
-                            <option
-                              key={type}
-                              value={type}
-                              className="bg-slate-900"
-                            >
-                              {type}
-                            </option>
-                          )
-                        )}
-                      </select>
-
-                      <ChevronDown
-                        size={17}
-                        className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-slate-500"
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <FieldLabel>
-                      Description
-                    </FieldLabel>
-
-                    <Textarea
-                      name="description"
-                      value={
-                        form.description
-                      }
-                      onChange={
-                        handleElectionChange
-                      }
-                      placeholder="Describe this election"
-                      rows={4}
-                      disabled={submitting}
-                    />
-                  </div>
-
-                  <div className="grid gap-5 md:grid-cols-2">
-                    <div>
-                      <FieldLabel required>
-                        Start Date
-                      </FieldLabel>
-
-                      <div className="relative">
-                        <CalendarDays
-                          size={17}
-                          className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-500"
-                        />
-
-                        <input
-                          type="datetime-local"
-                          name="startDate"
-                          value={
-                            form.startDate
-                          }
-                          onChange={
-                            handleElectionChange
-                          }
-                          disabled={submitting}
-                          className="w-full rounded-xl border border-white/10 bg-slate-900/70 py-3 pl-11 pr-4 text-sm text-white outline-none transition focus:border-emerald-400/40 focus:ring-2 focus:ring-emerald-500/10 disabled:opacity-50"
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <FieldLabel>
-                        End Date
-                      </FieldLabel>
-
-                      <div className="relative">
-                        <Clock3
-                          size={17}
-                          className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-500"
-                        />
-
-                        <input
-                          type="datetime-local"
-                          name="endDate"
-                          value={
-                            form.endDate
-                          }
-                          onChange={
-                            handleElectionChange
-                          }
-                          disabled={submitting}
-                          className="w-full rounded-xl border border-white/10 bg-slate-900/70 py-3 pl-11 pr-4 text-sm text-white outline-none transition focus:border-emerald-400/40 focus:ring-2 focus:ring-emerald-500/10 disabled:opacity-50"
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  <div>
-                    <FieldLabel>
-                      Banner Image URL
-                    </FieldLabel>
-
-                    <Input
-                      type="url"
-                      name="bannerImage"
-                      value={
-                        form.bannerImage
-                      }
-                      onChange={
-                        handleElectionChange
-                      }
-                      placeholder="https://example.com/banner.jpg"
-                      disabled={submitting}
-                    />
-                  </div>
-
-                  <div>
-                    <FieldLabel>
-                      Voting Instructions
-                    </FieldLabel>
-
-                    <Textarea
-                      name="instructions"
-                      value={
-                        form.instructions
-                      }
-                      onChange={
-                        handleElectionChange
-                      }
-                      placeholder="Instructions voters should follow"
-                      rows={4}
-                      disabled={submitting}
-                    />
-                  </div>
-
-                  <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-white/10 bg-white/[0.025] p-4">
-                    <input
-                      type="checkbox"
-                      name="allowResultsBeforeEnd"
-                      checked={
-                        form.allowResultsBeforeEnd
-                      }
-                      onChange={
-                        handleElectionChange
-                      }
-                      disabled={submitting}
-                      className="mt-1 h-4 w-4 accent-emerald-500"
-                    />
-
-                    <div>
-                      <p className="text-sm font-semibold text-slate-200">
-                        Allow results before
-                        election ends
-                      </p>
-
-                      <p className="mt-1 text-xs leading-5 text-slate-500">
-                        This setting controls whether
-                        results can be shown before the
-                        election ends.
-                      </p>
-                    </div>
-                  </label>
-
-                  {!editId && (
-                    <div className="flex gap-3 rounded-2xl border border-teal-400/15 bg-teal-500/[0.05] p-4">
-                      <Info
-                        size={18}
-                        className="mt-0.5 shrink-0 text-teal-400"
-                      />
-
-                      <div>
-                        <p className="text-sm font-semibold text-teal-300">
-                          Candidates are added after creation
-                        </p>
-
-                        <p className="mt-1 text-xs leading-5 text-slate-400">
-                          Once this election is created,
-                          the Candidate / Voting Options
-                          section will open automatically.
-                        </p>
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="flex flex-col gap-3 pt-2 sm:flex-row sm:justify-end">
-                    <button
-                      type="button"
-                      onClick={
-                        resetElectionForm
-                      }
-                      disabled={submitting}
-                      className="rounded-xl border border-white/10 px-5 py-3 text-sm font-semibold text-slate-300 transition hover:bg-white/5 hover:text-white disabled:opacity-50"
-                    >
-                      Cancel
-                    </button>
-
-                    <button
-                      type="submit"
-                      disabled={submitting}
-                      className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 px-6 py-3 text-sm font-bold text-white shadow-lg shadow-emerald-500/20 transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      {submitting ? (
-                        <Loader2
-                          size={18}
-                          className="animate-spin"
-                        />
-                      ) : editId ? (
-                        <Save size={18} />
-                      ) : (
-                        <Plus size={18} />
-                      )}
-
-                      {submitting
-                        ? "Saving..."
-                        : editId
-                        ? "Update Election"
-                        : "Create Election"}
-                    </button>
-                  </div>
-                </form>
               </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
 
-        {/* =================================================
-            ELECTION LIST HEADER
-        ================================================== */}
+              {/* USER ERROR */}
 
-        <div className="mb-5 flex items-center justify-between">
-          <div>
-            <h2 className="text-xl font-bold text-white sm:text-2xl">
-              All Elections
-            </h2>
-
-            <p className="mt-1 text-sm text-slate-500">
-              {elections.length} election
-              {elections.length !== 1
-                ? "s"
-                : ""}{" "}
-              found
-            </p>
-          </div>
-        </div>
-
-        {/* =================================================
-            ELECTION LOADING
-        ================================================== */}
-
-        {loading ? (
-          <div className="flex min-h-[350px] items-center justify-center rounded-3xl border border-white/10 bg-white/[0.03]">
-            <div className="text-center">
-              <Loader2
-                size={34}
-                className="mx-auto animate-spin text-emerald-400"
-              />
-
-              <p className="mt-3 text-sm text-slate-500">
-                Loading elections...
-              </p>
-            </div>
-          </div>
-        ) : elections.length === 0 ? (
-          <motion.div
-            initial={{
-              opacity: 0,
-              y: 15,
-            }}
-            animate={{
-              opacity: 1,
-              y: 0,
-            }}
-            className="flex min-h-[350px] flex-col items-center justify-center rounded-3xl border border-dashed border-white/10 bg-white/[0.02] p-8 text-center"
-          >
-            <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-emerald-400/20 bg-emerald-500/10 text-emerald-400">
-              <FileText size={28} />
-            </div>
-
-            <h3 className="mt-5 text-lg font-bold text-white">
-              No elections found
-            </h3>
-
-            <p className="mt-2 max-w-md text-sm text-slate-500">
-              Create your first election to start
-              managing the voting process.
-            </p>
-
-            <button
-              type="button"
-              onClick={openCreateForm}
-              className="mt-5 inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 px-5 py-3 text-sm font-bold text-white"
-            >
-              <Plus size={17} />
-              Create Election
-            </button>
-          </motion.div>
-        ) : (
-          <div className="grid gap-5">
-            {elections.map(
-              (election, index) => {
-                const status =
-                  getStatus(election);
-
-                const isActionLoading =
-                  actionId ===
-                  election._id;
-
-                const candidates =
-                  candidateLists[
-                    election._id
-                  ] || [];
-
-                const isExpanded =
-                  expandedElection ===
-                  election._id;
-
-                const isLocked =
-                  isElectionLocked(
-                    election
-                  );
-
-                return (
+              <AnimatePresence>
+                {usersError && (
                   <motion.div
-                    id={`election-${election._id}`}
-                    key={election._id}
                     initial={{
                       opacity: 0,
-                      y: 20,
+                      y: -10,
                     }}
                     animate={{
                       opacity: 1,
                       y: 0,
                     }}
-                    transition={{
-                      delay:
-                        index * 0.04,
+                    exit={{
+                      opacity: 0,
+                      y: -10,
                     }}
-                    className={`overflow-hidden rounded-3xl border bg-white/[0.04] shadow-xl backdrop-blur-xl transition ${
-                      isExpanded
-                        ? "border-emerald-400/30 shadow-emerald-500/5"
-                        : "border-white/10 hover:border-emerald-400/20"
-                    }`}
+                    className="mb-5 flex items-start gap-3 rounded-2xl border border-red-400/20 bg-red-500/10 p-4 text-sm text-red-300"
                   >
-                    {/* Election Card */}
-                    <div className="p-5 sm:p-6">
-                      <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-                        <div className="min-w-0 flex-1">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <h3 className="break-words text-lg font-bold text-white sm:text-xl">
-                              {election.title ||
-                                "Untitled Election"}
-                            </h3>
+                    <AlertCircle
+                      size={19}
+                      className="mt-0.5 shrink-0"
+                    />
 
-                            <span
-                              className={`rounded-full border px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide ${status.className}`}
-                            >
-                              {status.label}
-                            </span>
+                    <span className="flex-1">
+                      {usersError}
+                    </span>
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setUsersError("")
+                      }
+                    >
+                      <X size={17} />
+                    </button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* USER INFO */}
+
+              <div className="mb-5 flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-bold text-white">
+                    Voter Accounts
+                  </h3>
+
+                  <p className="mt-1 text-xs text-slate-600">
+                    Showing{" "}
+                    {
+                      filteredUsers.length
+                    }{" "}
+                    of {users.length} users
+                  </p>
+                </div>
+
+                {userStatusFilter !==
+                  "ALL" && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setUserStatusFilter(
+                        "ALL"
+                      )
+                    }
+                    className="text-xs font-semibold text-emerald-400 hover:text-emerald-300"
+                  >
+                    Show all
+                  </button>
+                )}
+              </div>
+
+              {/* USERS */}
+
+              {usersLoading ? (
+                <div className="flex min-h-[350px] items-center justify-center rounded-3xl border border-white/10 bg-white/[0.03]">
+                  <div className="text-center">
+                    <Loader2
+                      size={34}
+                      className="mx-auto animate-spin text-emerald-400"
+                    />
+
+                    <p className="mt-3 text-sm text-slate-500">
+                      Loading users...
+                    </p>
+                  </div>
+                </div>
+              ) : filteredUsers.length ===
+                0 ? (
+                <motion.div
+                  initial={{
+                    opacity: 0,
+                    y: 15,
+                  }}
+                  animate={{
+                    opacity: 1,
+                    y: 0,
+                  }}
+                  className="flex min-h-[350px] flex-col items-center justify-center rounded-3xl border border-dashed border-white/10 bg-white/[0.02] p-8 text-center"
+                >
+                  <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-emerald-400/20 bg-emerald-500/10 text-emerald-400">
+                    <Users
+                      size={28}
+                    />
+                  </div>
+
+                  <h3 className="mt-5 text-lg font-bold text-white">
+                    No users found
+                  </h3>
+
+                  <p className="mt-2 max-w-md text-sm text-slate-500">
+                    No users match the current search or
+                    verification filter.
+                  </p>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setUserSearch("");
+                      setUserStatusFilter(
+                        "ALL"
+                      );
+                    }}
+                    className="mt-5 rounded-xl border border-white/10 px-5 py-2.5 text-sm font-semibold text-slate-300 transition hover:bg-white/5 hover:text-white"
+                  >
+                    Clear Filters
+                  </button>
+                </motion.div>
+              ) : (
+                <div className="grid gap-4">
+                  <AnimatePresence>
+                    {filteredUsers.map(
+                      (user) => (
+                        <UserVerificationCard
+                          key={
+                            user._id
+                          }
+                          user={user}
+                          actionKey={
+                            verificationActionKey
+                          }
+                          onVerification={
+                            handleVoterVerification
+                          }
+                        />
+                      )
+                    )}
+                  </AnimatePresence>
+                </div>
+              )}
+            </motion.section>
+          )}
+
+          {/* =================================================
+              ELECTIONS SECTION
+          ================================================== */}
+
+          {activeSection ===
+            "elections" && (
+            <motion.section
+              key="elections"
+              initial={{
+                opacity: 0,
+                x: 15,
+              }}
+              animate={{
+                opacity: 1,
+                x: 0,
+              }}
+              exit={{
+                opacity: 0,
+                x: -15,
+              }}
+              transition={{
+                duration: 0.2,
+              }}
+            >
+              {/* ELECTION HEADER */}
+
+              <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <FileText
+                      size={21}
+                      className="text-teal-400"
+                    />
+
+                    <h2 className="text-2xl font-black text-white">
+                      Election Management
+                    </h2>
+                  </div>
+
+                  <p className="mt-1 text-sm text-slate-500">
+                    Create elections and manage candidates
+                    or voting options.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={
+                    openCreateForm
+                  }
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 px-5 py-3 text-sm font-bold text-white shadow-lg shadow-emerald-500/20 transition hover:-translate-y-0.5"
+                >
+                  <FileText
+                    size={17}
+                  />
+                  Create Election
+                </button>
+              </div>
+
+              {/* ELECTION ERROR */}
+
+              <AnimatePresence>
+                {electionError && (
+                  <motion.div
+                    initial={{
+                      opacity: 0,
+                      y: -10,
+                    }}
+                    animate={{
+                      opacity: 1,
+                      y: 0,
+                    }}
+                    exit={{
+                      opacity: 0,
+                      y: -10,
+                    }}
+                    className="mb-5 flex items-start gap-3 rounded-2xl border border-red-400/20 bg-red-500/10 p-4 text-sm text-red-300"
+                  >
+                    <AlertCircle
+                      size={19}
+                      className="mt-0.5 shrink-0"
+                    />
+
+                    <span className="flex-1">
+                      {electionError}
+                    </span>
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setElectionError(
+                          ""
+                        )
+                      }
+                      className="shrink-0"
+                    >
+                      <X size={17} />
+                    </button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* ELECTION FORM */}
+
+              <AnimatePresence>
+                {showForm && (
+                  <motion.div
+                    initial={{
+                      opacity: 0,
+                      height: 0,
+                      y: -10,
+                    }}
+                    animate={{
+                      opacity: 1,
+                      height: "auto",
+                      y: 0,
+                    }}
+                    exit={{
+                      opacity: 0,
+                      height: 0,
+                      y: -10,
+                    }}
+                    className="mb-8 overflow-hidden"
+                  >
+                    <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-5 shadow-2xl backdrop-blur-xl sm:p-7">
+                      <div className="mb-6 flex items-start justify-between gap-4">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <FileText
+                              size={19}
+                              className="text-emerald-400"
+                            />
+
+                            <h2 className="text-xl font-bold sm:text-2xl">
+                              {editId
+                                ? "Update Election"
+                                : "Create New Election"}
+                            </h2>
                           </div>
 
-                          <p className="mt-2 text-sm leading-6 text-slate-500">
-                            {election.description ||
-                              "No description provided."}
+                          <p className="mt-2 text-sm text-slate-500">
+                            Configure the election before
+                            managing candidates.
                           </p>
-
-                          <div className="mt-4 inline-flex items-center gap-2 rounded-lg border border-white/5 bg-white/[0.025] px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                            <FileText size={13} />
-
-                            {election.electionType ||
-                              "OTHER"}
-                          </div>
                         </div>
-
-                        <div className="shrink-0">
-                          <div className="flex items-center gap-2 rounded-xl border border-white/5 bg-slate-950/30 px-3 py-2">
-                            <span
-                              className={`h-2 w-2 rounded-full ${
-                                election.isPublished
-                                  ? "bg-emerald-400"
-                                  : "bg-slate-600"
-                              }`}
-                            />
-
-                            <span className="text-xs font-semibold text-slate-400">
-                              {election.isPublished
-                                ? "Published"
-                                : "Not published"}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Dates */}
-                      <div className="mt-6 grid gap-3 sm:grid-cols-2">
-                        <div className="rounded-2xl border border-white/5 bg-slate-950/40 p-4">
-                          <div className="flex items-center gap-2 text-xs font-semibold text-slate-500">
-                            <CalendarDays
-                              size={14}
-                            />
-                            Start
-                          </div>
-
-                          <p className="mt-2 text-sm font-semibold text-slate-200">
-                            {formatDate(
-                              election.startDate
-                            )}
-                          </p>
-
-                          <p className="mt-1 text-xs text-slate-600">
-                            {formatDateTime(
-                              election.startDate
-                            )}
-                          </p>
-                        </div>
-
-                        <div className="rounded-2xl border border-white/5 bg-slate-950/40 p-4">
-                          <div className="flex items-center gap-2 text-xs font-semibold text-slate-500">
-                            <Clock3 size={14} />
-                            End
-                          </div>
-
-                          <p className="mt-2 text-sm font-semibold text-slate-200">
-                            {formatDate(
-                              election.endDate
-                            )}
-                          </p>
-
-                          <p className="mt-1 text-xs text-slate-600">
-                            {formatDateTime(
-                              election.endDate
-                            )}
-                          </p>
-                        </div>
-                      </div>
-
-                      {/* Candidate summary */}
-                      <div className="mt-4 flex flex-wrap items-center gap-3">
-                        <div className="inline-flex items-center gap-2 rounded-xl border border-emerald-400/10 bg-emerald-500/[0.05] px-3 py-2">
-                          <Users
-                            size={15}
-                            className="text-emerald-400"
-                          />
-
-                          <span className="text-xs font-semibold text-slate-300">
-                            {candidates.length}{" "}
-                            candidate
-                            {candidates.length !==
-                            1
-                              ? "s"
-                              : ""}
-                          </span>
-                        </div>
-
-                        {election.allowResultsBeforeEnd && (
-                          <div className="inline-flex items-center gap-2 rounded-xl border border-teal-400/10 bg-teal-500/[0.05] px-3 py-2">
-                            <Check
-                              size={14}
-                              className="text-teal-400"
-                            />
-
-                            <span className="text-xs font-semibold text-slate-400">
-                              Early results allowed
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Candidate Management */}
-                    <div className="border-t border-white/10 bg-slate-950/20">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          toggleCandidates(
-                            election._id
-                          )
-                        }
-                        className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left transition hover:bg-white/[0.025] sm:px-6"
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-400">
-                            <Users
-                              size={17}
-                            />
-                          </div>
-
-                          <div>
-                            <p className="text-sm font-bold text-slate-200">
-                              Candidates / Voting Options
-                            </p>
-
-                            <p className="text-xs text-slate-600">
-                              {isLocked
-                                ? "Candidate management is locked"
-                                : "Add, edit and manage voting options"}
-                            </p>
-                          </div>
-                        </div>
-
-                        <motion.div
-                          animate={{
-                            rotate:
-                              isExpanded
-                                ? 180
-                                : 0,
-                          }}
-                        >
-                          <ChevronDown
-                            size={18}
-                            className="text-slate-500"
-                          />
-                        </motion.div>
-                      </button>
-
-                      <AnimatePresence
-                        initial={false}
-                      >
-                        {isExpanded && (
-                          <motion.div
-                            initial={{
-                              opacity: 0,
-                              height: 0,
-                            }}
-                            animate={{
-                              opacity: 1,
-                              height: "auto",
-                            }}
-                            exit={{
-                              opacity: 0,
-                              height: 0,
-                            }}
-                            className="overflow-hidden"
-                          >
-                            <div className="border-t border-white/5 p-5 sm:p-6">
-                              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                                <div>
-                                  <h4 className="font-bold text-white">
-                                    {candidates.length}{" "}
-                                    Candidate
-                                    {candidates.length !==
-                                    1
-                                      ? "s"
-                                      : ""}
-                                  </h4>
-
-                                  <p className="mt-1 text-xs text-slate-600">
-                                    {isLocked
-                                      ? "This election can no longer be modified."
-                                      : "Add any number of candidates or voting options."}
-                                  </p>
-                                </div>
-
-                                {!isLocked && (
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      openCandidateForm(
-                                        election._id
-                                      )
-                                    }
-                                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-500/10 px-4 py-2.5 text-xs font-bold text-emerald-300 transition hover:bg-emerald-500/20"
-                                  >
-                                    <Plus
-                                      size={15}
-                                    />
-                                    Add Candidate
-                                  </button>
-                                )}
-                              </div>
-
-                              <AnimatePresence>
-                                {showCandidateForm ===
-                                  election._id && (
-                                  <CandidateForm
-                                    election={
-                                      election
-                                    }
-                                    candidateForm={
-                                      candidateForm
-                                    }
-                                    setCandidateForm={
-                                      setCandidateForm
-                                    }
-                                    editingCandidateId={
-                                      editingCandidateId
-                                    }
-                                    candidateSubmitting={
-                                      candidateSubmitting
-                                    }
-                                    onSubmit={
-                                      handleCandidateSubmit
-                                    }
-                                    onCancel={
-                                      resetCandidateForm
-                                    }
-                                  />
-                                )}
-                              </AnimatePresence>
-
-                              {candidates.length ===
-                              0 ? (
-                                <div className="mt-5 rounded-2xl border border-dashed border-white/10 bg-white/[0.015] p-8 text-center">
-                                  <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-500/10 text-emerald-400">
-                                    <Users
-                                      size={26}
-                                    />
-                                  </div>
-
-                                  <p className="mt-3 text-sm font-semibold text-slate-400">
-                                    No candidates added yet
-                                  </p>
-
-                                  {!isLocked && (
-                                    <>
-                                      <p className="mt-1 text-xs text-slate-600">
-                                        Add the first
-                                        candidate / voting
-                                        option using the
-                                        button above.
-                                      </p>
-
-                                      <button
-                                        type="button"
-                                        onClick={() =>
-                                          openCandidateForm(
-                                            election._id
-                                          )
-                                        }
-                                        className="mt-4 inline-flex items-center gap-2 rounded-xl bg-emerald-500/10 px-4 py-2.5 text-xs font-bold text-emerald-300 transition hover:bg-emerald-500/20"
-                                      >
-                                        <Plus
-                                          size={15}
-                                        />
-                                        Add First Candidate
-                                      </button>
-                                    </>
-                                  )}
-                                </div>
-                              ) : (
-                                <motion.div
-                                  layout
-                                  className="mt-5 grid gap-3 md:grid-cols-2"
-                                >
-                                  <AnimatePresence>
-                                    {candidates.map(
-                                      (
-                                        candidate
-                                      ) => (
-                                        <CandidateItem
-                                          key={
-                                            candidate._id
-                                          }
-                                          candidate={
-                                            candidate
-                                          }
-                                          actionId={
-                                            candidateActionId
-                                          }
-                                          readOnly={
-                                            isLocked
-                                          }
-                                          onEdit={() =>
-                                            openCandidateForm(
-                                              election._id,
-                                              candidate
-                                            )
-                                          }
-                                          onDelete={
-                                            handleCandidateDelete
-                                          }
-                                        />
-                                      )
-                                    )}
-                                  </AnimatePresence>
-                                </motion.div>
-                              )}
-                            </div>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-                    </div>
-
-                    {/* Election Actions */}
-                    <div className="border-t border-white/10 bg-slate-950/30 p-4">
-                      <div className="flex flex-wrap gap-2">
-                        {!isLocked && (
-                          <button
-                            type="button"
-                            onClick={() =>
-                              handleEdit(
-                                election
-                              )
-                            }
-                            disabled={
-                              isActionLoading
-                            }
-                            className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-xs font-bold text-slate-300 transition hover:border-emerald-400/20 hover:bg-emerald-500/10 hover:text-emerald-300 disabled:opacity-50"
-                          >
-                            <Edit3
-                              size={15}
-                            />
-                            Edit
-                          </button>
-                        )}
-
-                        {election.status ===
-                          "DRAFT" && (
-                          <button
-                            type="button"
-                            onClick={() =>
-                              handlePublish(
-                                election
-                              )
-                            }
-                            disabled={
-                              isActionLoading
-                            }
-                            className="inline-flex items-center gap-2 rounded-xl border border-emerald-400/20 bg-emerald-500/10 px-4 py-2.5 text-xs font-bold text-emerald-300 transition hover:bg-emerald-500/20 disabled:opacity-50"
-                          >
-                            {isActionLoading ? (
-                              <Loader2
-                                size={15}
-                                className="animate-spin"
-                              />
-                            ) : (
-                              <CheckCircle2
-                                size={15}
-                              />
-                            )}
-
-                            Publish
-                          </button>
-                        )}
-
-                        {[
-                          "DRAFT",
-                          "UPCOMING",
-                          "LIVE",
-                        ].includes(
-                          election.status
-                        ) && (
-                          <button
-                            type="button"
-                            onClick={() =>
-                              handleCancel(
-                                election
-                              )
-                            }
-                            disabled={
-                              isActionLoading
-                            }
-                            className="inline-flex items-center gap-2 rounded-xl border border-amber-400/20 bg-amber-500/10 px-4 py-2.5 text-xs font-bold text-amber-300 transition hover:bg-amber-500/20 disabled:opacity-50"
-                          >
-                            <XCircle
-                              size={15}
-                            />
-                            Cancel
-                          </button>
-                        )}
 
                         <button
                           type="button"
-                          onClick={() =>
-                            handleDelete(
-                              election
-                            )
+                          onClick={
+                            resetElectionForm
                           }
                           disabled={
-                            isActionLoading
+                            submitting
                           }
-                          className="ml-auto inline-flex items-center gap-2 rounded-xl border border-red-400/20 bg-red-500/10 px-4 py-2.5 text-xs font-bold text-red-300 transition hover:bg-red-500/20 disabled:opacity-50"
+                          className="rounded-xl border border-white/10 p-2 text-slate-400 transition hover:bg-white/5 hover:text-white disabled:opacity-50"
                         >
-                          {isActionLoading ? (
-                            <Loader2
-                              size={15}
-                              className="animate-spin"
-                            />
-                          ) : (
-                            <Trash2
-                              size={15}
-                            />
-                          )}
-
-                          Delete
+                          <X
+                            size={19}
+                          />
                         </button>
                       </div>
+
+                      <form
+                        onSubmit={
+                          editId
+                            ? handleUpdate
+                            : handleCreate
+                        }
+                        className="space-y-5"
+                      >
+                        <div>
+                          <FieldLabel required>
+                            Election Title
+                          </FieldLabel>
+
+                          <Input
+                            name="title"
+                            value={
+                              form.title
+                            }
+                            onChange={
+                              handleElectionChange
+                            }
+                            placeholder="Enter election title"
+                            disabled={
+                              submitting
+                            }
+                          />
+                        </div>
+
+                        <div>
+                          <FieldLabel required>
+                            Election Type
+                          </FieldLabel>
+
+                          <div className="relative">
+                            <select
+                              name="electionType"
+                              value={
+                                form.electionType
+                              }
+                              onChange={
+                                handleElectionChange
+                              }
+                              disabled={
+                                submitting
+                              }
+                              className="w-full appearance-none rounded-xl border border-white/10 bg-slate-900/70 px-4 py-3 text-sm text-white outline-none transition focus:border-emerald-400/40 focus:ring-2 focus:ring-emerald-500/10 disabled:opacity-50"
+                            >
+                              {ELECTION_TYPES.map(
+                                (
+                                  type
+                                ) => (
+                                  <option
+                                    key={
+                                      type
+                                    }
+                                    value={
+                                      type
+                                    }
+                                    className="bg-slate-900"
+                                  >
+                                    {
+                                      type
+                                    }
+                                  </option>
+                                )
+                              )}
+                            </select>
+
+                            <ChevronDown
+                              size={17}
+                              className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-slate-500"
+                            />
+                          </div>
+                        </div>
+
+                        <div>
+                          <FieldLabel>
+                            Description
+                          </FieldLabel>
+
+                          <Textarea
+                            name="description"
+                            value={
+                              form.description
+                            }
+                            onChange={
+                              handleElectionChange
+                            }
+                            placeholder="Describe this election"
+                            rows={4}
+                          />
+                        </div>
+
+                        <div className="grid gap-5 md:grid-cols-2">
+                          <div>
+                            <FieldLabel required>
+                              Start Date
+                            </FieldLabel>
+
+                            <div className="relative">
+                              <CalendarDays
+                                size={17}
+                                className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-500"
+                              />
+
+                              <input
+                                type="datetime-local"
+                                name="startDate"
+                                value={
+                                  form.startDate
+                                }
+                                onChange={
+                                  handleElectionChange
+                                }
+                                disabled={
+                                  submitting
+                                }
+                                className="w-full rounded-xl border border-white/10 bg-slate-900/70 py-3 pl-11 pr-4 text-sm text-white outline-none transition focus:border-emerald-400/40 focus:ring-2 focus:ring-emerald-500/10 disabled:opacity-50"
+                              />
+                            </div>
+                          </div>
+
+                          <div>
+                            <FieldLabel>
+                              End Date
+                            </FieldLabel>
+
+                            <div className="relative">
+                              <Clock3
+                                size={17}
+                                className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-500"
+                              />
+
+                              <input
+                                type="datetime-local"
+                                name="endDate"
+                                value={
+                                  form.endDate
+                                }
+                                onChange={
+                                  handleElectionChange
+                                }
+                                disabled={
+                                  submitting
+                                }
+                                className="w-full rounded-xl border border-white/10 bg-slate-900/70 py-3 pl-11 pr-4 text-sm text-white outline-none transition focus:border-emerald-400/40 focus:ring-2 focus:ring-emerald-500/10 disabled:opacity-50"
+                              />
+                            </div>
+                          </div>
+                        </div>
+
+                        <div>
+                          <FieldLabel>
+                            Banner Image URL
+                          </FieldLabel>
+
+                          <Input
+                            type="url"
+                            name="bannerImage"
+                            value={
+                              form.bannerImage
+                            }
+                            onChange={
+                              handleElectionChange
+                            }
+                            placeholder="https://example.com/banner.jpg"
+                            disabled={
+                              submitting
+                            }
+                          />
+                        </div>
+
+                        <div>
+                          <FieldLabel>
+                            Voting Instructions
+                          </FieldLabel>
+
+                          <Textarea
+                            name="instructions"
+                            value={
+                              form.instructions
+                            }
+                            onChange={
+                              handleElectionChange
+                            }
+                            placeholder="Instructions voters should follow"
+                            rows={4}
+                          />
+                        </div>
+
+                        <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-white/10 bg-white/[0.025] p-4">
+                          <input
+                            type="checkbox"
+                            name="allowResultsBeforeEnd"
+                            checked={
+                              form.allowResultsBeforeEnd
+                            }
+                            onChange={
+                              handleElectionChange
+                            }
+                            disabled={
+                              submitting
+                            }
+                            className="mt-1 h-4 w-4 accent-emerald-500"
+                          />
+
+                          <div>
+                            <p className="text-sm font-semibold text-slate-200">
+                              Allow results before election ends
+                            </p>
+
+                            <p className="mt-1 text-xs leading-5 text-slate-500">
+                              This setting is controlled by
+                              the election backend.
+                            </p>
+                          </div>
+                        </label>
+
+                        <div className="flex gap-3 rounded-2xl border border-teal-400/15 bg-teal-500/[0.05] p-4">
+                          <Info
+                            size={18}
+                            className="mt-0.5 shrink-0 text-teal-400"
+                          />
+
+                          <p className="text-xs leading-5 text-slate-400">
+                            After creating the election,
+                            you can add any number of candidates
+                            or voting options.
+                          </p>
+                        </div>
+
+                        <div className="flex flex-col gap-3 pt-2 sm:flex-row sm:justify-end">
+                          <button
+                            type="button"
+                            onClick={
+                              resetElectionForm
+                            }
+                            disabled={
+                              submitting
+                            }
+                            className="rounded-xl border border-white/10 px-5 py-3 text-sm font-semibold text-slate-300 transition hover:bg-white/5 hover:text-white disabled:opacity-50"
+                          >
+                            Cancel
+                          </button>
+
+                          <button
+                            type="submit"
+                            disabled={
+                              submitting
+                            }
+                            className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 px-6 py-3 text-sm font-bold text-white shadow-lg shadow-emerald-500/20 transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            {submitting ? (
+                              <Loader2
+                                size={18}
+                                className="animate-spin"
+                              />
+                            ) : editId ? (
+                              <Save
+                                size={18}
+                              />
+                            ) : (
+                              <FileText
+                                size={18}
+                              />
+                            )}
+
+                            {submitting
+                              ? "Saving..."
+                              : editId
+                              ? "Update Election"
+                              : "Create Election"}
+                          </button>
+                        </div>
+                      </form>
                     </div>
                   </motion.div>
-                );
-              }
-            )}
-          </div>
-        )}
+                )}
+              </AnimatePresence>
+
+              {/* ELECTION LIST HEADER */}
+
+              <div className="mb-5 flex items-center justify-between">
+                <div>
+                  <h2 className="text-xl font-bold text-white sm:text-2xl">
+                    All Elections
+                  </h2>
+
+                  <p className="mt-1 text-sm text-slate-500">
+                    {elections.length} election
+                    {elections.length !==
+                    1
+                      ? "s"
+                      : ""}{" "}
+                    found
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={
+                    loadElections
+                  }
+                  disabled={
+                    loading
+                  }
+                  className="hidden items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-xs font-bold text-slate-400 transition hover:bg-white/[0.07] hover:text-white sm:inline-flex"
+                >
+                  <RefreshCw
+                    size={15}
+                    className={
+                      loading
+                        ? "animate-spin"
+                        : ""
+                    }
+                  />
+
+                  Refresh
+                </button>
+              </div>
+
+              {/* ELECTION LOADING */}
+
+              {loading ? (
+                <div className="flex min-h-[350px] items-center justify-center rounded-3xl border border-white/10 bg-white/[0.03]">
+                  <div className="text-center">
+                    <Loader2
+                      size={34}
+                      className="mx-auto animate-spin text-emerald-400"
+                    />
+
+                    <p className="mt-3 text-sm text-slate-500">
+                      Loading elections...
+                    </p>
+                  </div>
+                </div>
+              ) : elections.length ===
+                0 ? (
+                <motion.div
+                  initial={{
+                    opacity: 0,
+                    y: 15,
+                  }}
+                  animate={{
+                    opacity: 1,
+                    y: 0,
+                  }}
+                  className="flex min-h-[350px] flex-col items-center justify-center rounded-3xl border border-dashed border-white/10 bg-white/[0.02] p-8 text-center"
+                >
+                  <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-emerald-400/20 bg-emerald-500/10 text-emerald-400">
+                    <FileText
+                      size={28}
+                    />
+                  </div>
+
+                  <h3 className="mt-5 text-lg font-bold text-white">
+                    No elections found
+                  </h3>
+
+                  <p className="mt-2 max-w-md text-sm text-slate-500">
+                    Create your first election to start
+                    managing the voting process.
+                  </p>
+
+                  <button
+                    type="button"
+                    onClick={
+                      openCreateForm
+                    }
+                    className="mt-5 inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 px-5 py-3 text-sm font-bold text-white"
+                  >
+                    <FileText
+                      size={17}
+                    />
+
+                    Create Election
+                  </button>
+                </motion.div>
+              ) : (
+                <div className="grid gap-5">
+                  {elections.map(
+                    (
+                      election,
+                      index
+                    ) => {
+                      const status =
+                        getStatus(
+                          election
+                        );
+
+                      const isActionLoading =
+                        actionId ===
+                        election._id;
+
+                      const candidates =
+                        candidateLists[
+                          election._id
+                        ] || [];
+
+                      const isExpanded =
+                        expandedElection ===
+                        election._id;
+
+                      const isLocked =
+                        [
+                          "LIVE",
+                          "COMPLETED",
+                          "CANCELLED",
+                        ].includes(
+                          election?.status?.toUpperCase()
+                        );
+
+                      return (
+                        <motion.div
+                          key={
+                            election._id
+                          }
+                          initial={{
+                            opacity: 0,
+                            y: 20,
+                          }}
+                          animate={{
+                            opacity: 1,
+                            y: 0,
+                          }}
+                          transition={{
+                            delay:
+                              index *
+                              0.04,
+                          }}
+                          className="overflow-hidden rounded-3xl border border-white/10 bg-white/[0.04] shadow-xl backdrop-blur-xl transition hover:border-emerald-400/20"
+                        >
+                          {/* ELECTION CARD */}
+
+                          <div className="p-5 sm:p-6">
+                            <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+                              <div className="min-w-0 flex-1">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <h3 className="break-words text-lg font-bold text-white sm:text-xl">
+                                    {election.title ||
+                                      "Untitled Election"}
+                                  </h3>
+
+                                  <span
+                                    className={`rounded-full border px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide ${status.className}`}
+                                  >
+                                    {
+                                      status.label
+                                    }
+                                  </span>
+                                </div>
+
+                                <p className="mt-2 text-sm leading-6 text-slate-500">
+                                  {election.description ||
+                                    "No description provided."}
+                                </p>
+
+                                <div className="mt-4 inline-flex items-center gap-2 rounded-lg border border-white/5 bg-white/[0.025] px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                                  <FileText
+                                    size={
+                                      13
+                                    }
+                                  />
+
+                                  {election.electionType ||
+                                    "OTHER"}
+                                </div>
+                              </div>
+
+                              <div className="shrink-0">
+                                <div className="flex items-center gap-2 rounded-xl border border-white/5 bg-slate-950/30 px-3 py-2">
+                                  <span
+                                    className={`h-2 w-2 rounded-full ${
+                                      election.isPublished
+                                        ? "bg-emerald-400"
+                                        : "bg-slate-600"
+                                    }`}
+                                  />
+
+                                  <span className="text-xs font-semibold text-slate-400">
+                                    {election.isPublished
+                                      ? "Published"
+                                      : "Not published"}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* DATES */}
+
+                            <div className="mt-6 grid gap-3 sm:grid-cols-2">
+                              <div className="rounded-2xl border border-white/5 bg-slate-950/40 p-4">
+                                <div className="flex items-center gap-2 text-xs font-semibold text-slate-500">
+                                  <CalendarDays
+                                    size={
+                                      14
+                                    }
+                                  />
+
+                                  Start
+                                </div>
+
+                                <p className="mt-2 text-sm font-semibold text-slate-200">
+                                  {formatDate(
+                                    election.startDate
+                                  )}
+                                </p>
+                              </div>
+
+                              <div className="rounded-2xl border border-white/5 bg-slate-950/40 p-4">
+                                <div className="flex items-center gap-2 text-xs font-semibold text-slate-500">
+                                  <Clock3
+                                    size={
+                                      14
+                                    }
+                                  />
+
+                                  End
+                                </div>
+
+                                <p className="mt-2 text-sm font-semibold text-slate-200">
+                                  {formatDate(
+                                    election.endDate
+                                  )}
+                                </p>
+                              </div>
+                            </div>
+
+                            {/* SUMMARY */}
+
+                            <div className="mt-4 flex flex-wrap items-center gap-3">
+                              <div className="inline-flex items-center gap-2 rounded-xl border border-emerald-400/10 bg-emerald-500/[0.05] px-3 py-2">
+                                <Users
+                                  size={
+                                    15
+                                  }
+                                  className="text-emerald-400"
+                                />
+
+                                <span className="text-xs font-semibold text-slate-300">
+                                  {
+                                    candidates.length
+                                  }{" "}
+                                  candidate
+                                  {candidates.length !==
+                                  1
+                                    ? "s"
+                                    : ""}
+                                </span>
+                              </div>
+
+                              {election.allowResultsBeforeEnd && (
+                                <div className="inline-flex items-center gap-2 rounded-xl border border-teal-400/10 bg-teal-500/[0.05] px-3 py-2">
+                                  <Check
+                                    size={
+                                      14
+                                    }
+                                    className="text-teal-400"
+                                  />
+
+                                  <span className="text-xs font-semibold text-slate-400">
+                                    Early results allowed
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* CANDIDATE MANAGEMENT */}
+
+                          <div className="border-t border-white/10 bg-slate-950/20">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                toggleCandidates(
+                                  election._id
+                                )
+                              }
+                              className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left transition hover:bg-white/[0.025] sm:px-6"
+                            >
+                              <div className="flex items-center gap-3">
+                                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-400">
+                                  <Users
+                                    size={
+                                      17
+                                    }
+                                  />
+                                </div>
+
+                                <div>
+                                  <p className="text-sm font-bold text-slate-200">
+                                    Candidates / Voting Options
+                                  </p>
+
+                                  <p className="text-xs text-slate-600">
+                                    Manage candidates for this election
+                                  </p>
+                                </div>
+                              </div>
+
+                              <motion.div
+                                animate={{
+                                  rotate:
+                                    isExpanded
+                                      ? 180
+                                      : 0,
+                                }}
+                              >
+                                <ChevronDown
+                                  size={
+                                    18
+                                  }
+                                  className="text-slate-500"
+                                />
+                              </motion.div>
+                            </button>
+
+                            <AnimatePresence
+                              initial={
+                                false
+                              }
+                            >
+                              {isExpanded && (
+                                <motion.div
+                                  initial={{
+                                    opacity: 0,
+                                    height: 0,
+                                  }}
+                                  animate={{
+                                    opacity: 1,
+                                    height: "auto",
+                                  }}
+                                  exit={{
+                                    opacity: 0,
+                                    height: 0,
+                                  }}
+                                  className="overflow-hidden"
+                                >
+                                  <div className="border-t border-white/5 p-5 sm:p-6">
+                                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                                      <div>
+                                        <h4 className="font-bold text-white">
+                                          {
+                                            candidates.length
+                                          }{" "}
+                                          Candidate
+                                          {candidates.length !==
+                                          1
+                                            ? "s"
+                                            : ""}
+                                        </h4>
+
+                                        <p className="mt-1 text-xs text-slate-600">
+                                          Add any number of voting options
+                                          for this election.
+                                        </p>
+                                      </div>
+
+                                      {!isLocked && (
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            openCandidateForm(
+                                              election._id
+                                            )
+                                          }
+                                          className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-500/10 px-4 py-2.5 text-xs font-bold text-emerald-300 transition hover:bg-emerald-500/20"
+                                        >
+                                          <UserPlus
+                                            size={
+                                              15
+                                            }
+                                          />
+
+                                          Add Candidate
+                                        </button>
+                                      )}
+                                    </div>
+
+                                    <AnimatePresence>
+                                      {showCandidateForm ===
+                                        election._id && (
+                                        <CandidateForm
+                                          election={
+                                            election
+                                          }
+                                          candidateForm={
+                                            candidateForm
+                                          }
+                                          setCandidateForm={
+                                            setCandidateForm
+                                          }
+                                          editingCandidateId={
+                                            editingCandidateId
+                                          }
+                                          candidateSubmitting={
+                                            candidateSubmitting
+                                          }
+                                          onSubmit={
+                                            handleCandidateSubmit
+                                          }
+                                          onCancel={
+                                            resetCandidateForm
+                                          }
+                                        />
+                                      )}
+                                    </AnimatePresence>
+
+                                    {candidates.length ===
+                                    0 ? (
+                                      <div className="mt-5 rounded-2xl border border-dashed border-white/10 bg-white/[0.015] p-8 text-center">
+                                        <Users
+                                          size={
+                                            30
+                                          }
+                                          className="mx-auto text-slate-700"
+                                        />
+
+                                        <p className="mt-3 text-sm font-semibold text-slate-500">
+                                          No candidates added yet
+                                        </p>
+
+                                        {!isLocked && (
+                                          <p className="mt-1 text-xs text-slate-700">
+                                            Add candidates before publishing
+                                            if your election workflow requires
+                                            them.
+                                          </p>
+                                        )}
+                                      </div>
+                                    ) : (
+                                      <motion.div
+                                        layout
+                                        className="mt-5 grid gap-3 md:grid-cols-2"
+                                      >
+                                        <AnimatePresence>
+                                          {candidates.map(
+                                            (
+                                              candidate
+                                            ) => (
+                                              <CandidateItem
+                                                key={
+                                                  candidate._id
+                                                }
+                                                candidate={
+                                                  candidate
+                                                }
+                                                actionId={
+                                                  candidateActionId
+                                                }
+                                                locked={
+                                                  isLocked
+                                                }
+                                                onEdit={() =>
+                                                  openCandidateForm(
+                                                    election._id,
+                                                    candidate
+                                                  )
+                                                }
+                                                onDelete={
+                                                  handleCandidateDelete
+                                                }
+                                              />
+                                            )
+                                          )}
+                                        </AnimatePresence>
+                                      </motion.div>
+                                    )}
+                                  </div>
+                                </motion.div>
+                              )}
+                            </AnimatePresence>
+                          </div>
+
+                          {/* ELECTION ACTIONS */}
+
+                          <div className="border-t border-white/10 bg-slate-950/30 p-4">
+                            <div className="flex flex-wrap gap-2">
+                              {!isLocked && (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    handleEdit(
+                                      election
+                                    )
+                                  }
+                                  disabled={
+                                    isActionLoading
+                                  }
+                                  className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-xs font-bold text-slate-300 transition hover:border-emerald-400/20 hover:bg-emerald-500/10 hover:text-emerald-300 disabled:opacity-50"
+                                >
+                                  <Edit3
+                                    size={
+                                      15
+                                    }
+                                  />
+
+                                  Edit
+                                </button>
+                              )}
+
+                              {election.status ===
+                                "DRAFT" && (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    handlePublish(
+                                      election
+                                    )
+                                  }
+                                  disabled={
+                                    isActionLoading
+                                  }
+                                  className="inline-flex items-center gap-2 rounded-xl border border-emerald-400/20 bg-emerald-500/10 px-4 py-2.5 text-xs font-bold text-emerald-300 transition hover:bg-emerald-500/20 disabled:opacity-50"
+                                >
+                                  {isActionLoading ? (
+                                    <Loader2
+                                      size={
+                                        15
+                                      }
+                                      className="animate-spin"
+                                    />
+                                  ) : (
+                                    <CheckCircle2
+                                      size={
+                                        15
+                                      }
+                                    />
+                                  )}
+
+                                  Publish
+                                </button>
+                              )}
+
+                              {[
+                                "DRAFT",
+                                "UPCOMING",
+                                "LIVE",
+                              ].includes(
+                                election.status
+                              ) && (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    handleCancel(
+                                      election
+                                    )
+                                  }
+                                  disabled={
+                                    isActionLoading
+                                  }
+                                  className="inline-flex items-center gap-2 rounded-xl border border-amber-400/20 bg-amber-500/10 px-4 py-2.5 text-xs font-bold text-amber-300 transition hover:bg-amber-500/20 disabled:opacity-50"
+                                >
+                                  <XCircle
+                                    size={
+                                      15
+                                    }
+                                  />
+
+                                  Cancel
+                                </button>
+                              )}
+
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  handleDelete(
+                                    election
+                                  )
+                                }
+                                disabled={
+                                  isActionLoading
+                                }
+                                className="ml-auto inline-flex items-center gap-2 rounded-xl border border-red-400/20 bg-red-500/10 px-4 py-2.5 text-xs font-bold text-red-300 transition hover:bg-red-500/20 disabled:opacity-50"
+                              >
+                                {isActionLoading ? (
+                                  <Loader2
+                                    size={
+                                      15
+                                    }
+                                    className="animate-spin"
+                                  />
+                                ) : (
+                                  <Trash2
+                                    size={
+                                      15
+                                    }
+                                  />
+                                )}
+
+                                Delete
+                              </button>
+                            </div>
+                          </div>
+                        </motion.div>
+                      );
+                    }
+                  )}
+                </div>
+              )}
+            </motion.section>
+          )}
+        </AnimatePresence>
       </div>
     </div>
   );
 };
 
-export default ManageElections;
+export default Admin;
