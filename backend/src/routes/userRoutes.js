@@ -3,6 +3,7 @@ import express from "express";
 import {
   getAllUsers,
   getUserById,
+  updateVoterVerification,
   toggleUserStatus,
   deleteUser,
 } from "../controllers/userController.js";
@@ -13,13 +14,13 @@ import auditMiddleware from "../middleware/auditMiddleware.js";
 
 const router = express.Router();
 
-/* =========================================================
-   GET ALL USERS
-   GET /api/users
+/* ======================================================
+   ADMIN USER MANAGEMENT
+====================================================== */
 
-   Admin only
-========================================================= */
-
+/*
+GET /api/users
+*/
 router.get(
   "/",
   authMiddleware,
@@ -27,13 +28,9 @@ router.get(
   getAllUsers
 );
 
-/* =========================================================
-   GET SINGLE USER
-   GET /api/users/:id
-
-   Admin only
-========================================================= */
-
+/*
+GET /api/users/:id
+*/
 router.get(
   "/:id",
   authMiddleware,
@@ -41,13 +38,37 @@ router.get(
   getUserById
 );
 
-/* =========================================================
-   BLOCK / UNBLOCK USER
-   PATCH /api/users/:id/status
+/*
+PATCH /api/users/:id/voter-verification
 
-   Admin only + audit log
-========================================================= */
+Body:
+{
+  "status": "VERIFIED"
+}
 
+or
+
+{
+  "status": "REJECTED"
+}
+
+or
+
+{
+  "status": "PENDING"
+}
+*/
+router.patch(
+  "/:id/voter-verification",
+  authMiddleware,
+  adminMiddleware,
+  auditMiddleware,
+  updateVoterVerification
+);
+
+/*
+PATCH /api/users/:id/status
+*/
 router.patch(
   "/:id/status",
   authMiddleware,
@@ -56,13 +77,9 @@ router.patch(
   toggleUserStatus
 );
 
-/* =========================================================
-   DELETE USER
-   DELETE /api/users/:id
-
-   Admin only + audit log
-========================================================= */
-
+/*
+DELETE /api/users/:id
+*/
 router.delete(
   "/:id",
   authMiddleware,
