@@ -15,6 +15,7 @@ import StatsCard from "./StatsCard";
 import ReportChart from "./ReportChart";
 
 import API from "../../api/axios";
+import { getPublicElections } from "../../api/electionApi";
 
 const UserDashboard = () => {
   const [dashboardData, setDashboardData] =
@@ -32,6 +33,10 @@ const UserDashboard = () => {
   const [refreshing, setRefreshing] =
     useState(false);
 
+  // =========================================================
+  // FETCH DASHBOARD
+  // =========================================================
+
   const fetchDashboard = async (
     isRefresh = false
   ) => {
@@ -42,59 +47,66 @@ const UserDashboard = () => {
         setLoading(true);
       }
 
-      const [
-        electionResponse,
-        notificationResponse,
-        profileResponse,
-      ] = await Promise.all([
-        API.get("/elections"),
+      /*
+       * IMPORTANT:
+       *
+       * /elections is admin-only.
+       * Normal users must use:
+       *
+       * /elections/public
+       *
+       * Profile can legitimately return 404 when
+       * the voter profile has not been created yet.
+       *
+       * Therefore Promise.allSettled is used instead
+       * of Promise.all.
+       */
+
+      const results = await Promise.allSettled([
+        getPublicElections(),
         API.get("/notifications"),
         API.get("/profile/me"),
       ]);
 
-      /*
-       * ==========================================
-       * RESPONSE NORMALIZATION
-       * ==========================================
-       */
+      // =====================================================
+      // ELECTIONS
+      // =====================================================
 
-      const electionPayload =
-        electionResponse?.data?.data ||
-        electionResponse?.data ||
-        {};
+      let elections = [];
 
-      const notificationPayload =
-        notificationResponse?.data?.data ||
-        notificationResponse?.data ||
-        {};
+      const electionResult = results[0];
 
-      const profilePayload =
-        profileResponse?.data?.data ||
-        profileResponse?.data ||
-        {};
+      if (electionResult.status === "fulfilled") {
+        const response =
+          electionResult.value;
 
-      /*
-       * ==========================================
-       * ELECTIONS
-       * ==========================================
-       */
+        const payload =
+          response?.data ?? response;
 
-      const elections =
-        Array.isArray(
-          electionPayload?.elections
-        )
-          ? electionPayload.elections
-          : [];
-
-      /*
-       * Backend status:
-       *
-       * DRAFT
-       * UPCOMING
-       * LIVE
-       * COMPLETED
-       * CANCELLED
-       */
+        if (Array.isArray(payload)) {
+          elections = payload;
+        } else if (
+          Array.isArray(payload?.elections)
+        ) {
+          elections = payload.elections;
+        } else if (
+          Array.isArray(payload?.data)
+        ) {
+          elections = payload.data;
+        } else if (
+          Array.isArray(
+            payload?.data?.elections
+          )
+        ) {
+          elections =
+            payload.data.elections;
+        }
+      } else {
+        console.error(
+          "DASHBOARD ELECTION ERROR:",
+          electionResult.reason
+        );
+      }
 
       const liveElections =
         elections.filter(
@@ -102,87 +114,144 @@ const UserDashboard = () => {
             election?.status === "LIVE"
         ).length;
 
-      /*
-       * ==========================================
-       * NOTIFICATIONS
-       * ==========================================
-       */
+      // =====================================================
+      // NOTIFICATIONS
+      // =====================================================
 
-      const notifications =
-        Array.isArray(
-          notificationPayload?.notifications
-        )
-          ? notificationPayload.notifications
-          : [];
+      let unreadNotifications = 0;
 
-      /*
-       * Prefer backend unreadCount if available.
-       * Otherwise calculate it from returned
-       * notifications.
-       */
+      const notificationResult =
+        results[1];
 
-      const unreadNotifications =
-        Number.isFinite(
-          Number(
-            notificationPayload?.unreadCount
+      if (
+        notificationResult.status ===
+        "fulfilled"
+      ) {
+        const response =
+          notificationResult.value;
+
+        const payload =
+          response?.data ?? response;
+
+        const notifications =
+          Array.isArray(
+            payload?.notifications
           )
-        )
-          ? Number(
-              notificationPayload.unreadCount
-            )
-          : notifications.filter(
+            ? payload.notifications
+            : Array.isArray(payload)
+            ? payload
+            : Array.isArray(
+                payload?.data?.notifications
+              )
+            ? payload.data.notifications
+            : [];
+
+        if (
+          Number.isFinite(
+            Number(payload?.unreadCount)
+          )
+        ) {
+          unreadNotifications = Number(
+            payload.unreadCount
+          );
+        } else {
+          unreadNotifications =
+            notifications.filter(
               (notification) =>
                 !notification?.isRead
             ).length;
+        }
+      } else {
+        console.error(
+          "DASHBOARD NOTIFICATION ERROR:",
+          notificationResult.reason
+        );
+      }
 
-      /*
-       * ==========================================
-       * PROFILE
-       * ==========================================
-       */
+      // =====================================================
+      // PROFILE
+      // =====================================================
 
-      const profile =
-        profilePayload?.profile ||
-        null;
+      let verified = false;
 
-      /*
-       * Backend profile has eligibility/
-       * verification information.
-       *
-       * Do not invent another backend field.
-       */
+      const profileResult = results[2];
 
-      const verified =
-        Boolean(
+      if (
+        profileResult.status ===
+        "fulfilled"
+      ) {
+        const response =
+          profileResult.value;
+
+        const payload =
+          response?.data ?? response;
+
+        const profile =
+          payload?.profile ??
+          payload?.data?.profile ??
+          null;
+
+        /*
+         * Backend profile uses isEligible.
+         * Do not invent another verification field.
+         */
+
+        verified = Boolean(
           profile?.isEligible
         );
+      } else {
+        const profileError =
+          profileResult.reason;
 
-      /*
-       * ==========================================
-       * CHART
-       * ==========================================
-       *
-       * Only use totalVotes when backend
-       * actually returns it.
-       */
+        /*
+         * 404 means profile does not exist yet.
+         * This is not a dashboard failure.
+         */
 
-      const chartData =
-        elections.map(
-          (election) => ({
-            name:
-              election?.title?.length > 18
-                ? `${election.title.slice(
-                    0,
-                    18
-                  )}...`
-                : election?.title ||
-                  "Election",
+        if (
+          profileError?.response?.status ===
+          404
+        ) {
+          verified = false;
+        } else {
+          console.error(
+            "DASHBOARD PROFILE ERROR:",
+            profileError
+          );
+        }
+      }
 
-            votes: Number(
-              election?.totalVotes || 0
-            ),
-          })
-        );
+      // =====================================================
+      // CHART DATA
+      // =====================================================
+      //
+      // Do NOT create fake vote numbers.
+      //
+      // Only use vote data if backend actually
+      // provides totalVotes.
+      //
+
+      const chartData = elections
+        .filter((election) =>
+          Object.prototype.hasOwnProperty.call(
+            election || {},
+            "totalVotes"
+          )
+        )
+        .map((election) => ({
+          name:
+            election?.title?.length > 18
+              ? `${election.title.slice(
+                  0,
+                  18
+                )}...`
+              : election?.title ||
+                "Election",
+
+          votes: Number(
+            election?.totalVotes || 0
+          ),
+        }));
 
       setDashboardData({
         liveElections,
@@ -193,6 +262,24 @@ const UserDashboard = () => {
         verified,
         chartData,
       });
+
+      /*
+       * Show an error only when the important
+       * election request itself fails.
+       */
+
+      if (
+        electionResult.status ===
+        "rejected" &&
+        electionResult.reason?.response
+          ?.status !== 429
+      ) {
+        toast.error(
+          electionResult.reason?.response
+            ?.data?.message ||
+            "Unable to load elections."
+        );
+      }
     } catch (error) {
       console.error(
         "USER DASHBOARD ERROR:",
@@ -213,15 +300,17 @@ const UserDashboard = () => {
     }
   };
 
+  // =========================================================
+  // INITIAL LOAD
+  // =========================================================
+
   useEffect(() => {
     fetchDashboard();
   }, []);
 
-  /*
-   * ==========================================
-   * LOADING
-   * ==========================================
-   */
+  // =========================================================
+  // LOADING
+  // =========================================================
 
   if (loading) {
     return (
@@ -267,9 +356,9 @@ const UserDashboard = () => {
       }}
       className="space-y-8"
     >
-      {/* ==========================================
+      {/* =================================================
           HEADER
-      ========================================== */}
+      ================================================== */}
 
       <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
         <div>
@@ -286,7 +375,8 @@ const UserDashboard = () => {
           </h1>
 
           <p className="mt-2 text-sm text-slate-400 sm:text-base">
-            Track elections, notifications and your verification status.
+            Track elections, notifications and
+            your eligibility status.
           </p>
         </div>
 
@@ -313,9 +403,9 @@ const UserDashboard = () => {
         </button>
       </div>
 
-      {/* ==========================================
+      {/* =================================================
           STATS
-      ========================================== */}
+      ================================================== */}
 
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
         <StatsCard
@@ -369,13 +459,14 @@ const UserDashboard = () => {
         />
       </div>
 
-      {/* ==========================================
+      {/* =================================================
           STATUS CARDS
-      ========================================== */}
+      ================================================== */}
 
       <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
         <motion.div
           whileHover={{ y: -3 }}
+          transition={{ duration: 0.2 }}
           className="rounded-2xl border border-white/10 bg-slate-900/70 p-5 backdrop-blur-xl"
         >
           <div className="flex items-start gap-4">
@@ -399,6 +490,7 @@ const UserDashboard = () => {
 
         <motion.div
           whileHover={{ y: -3 }}
+          transition={{ duration: 0.2 }}
           className="rounded-2xl border border-white/10 bg-slate-900/70 p-5 backdrop-blur-xl"
         >
           <div className="flex items-start gap-4">
@@ -412,7 +504,8 @@ const UserDashboard = () => {
               </h3>
 
               <p className="mt-1 text-sm leading-6 text-slate-400">
-                {dashboardData.liveElections > 0
+                {dashboardData.liveElections >
+                0
                   ? `${dashboardData.liveElections} election${
                       dashboardData.liveElections ===
                       1
@@ -426,13 +519,16 @@ const UserDashboard = () => {
         </motion.div>
       </div>
 
-      {/* ==========================================
+      {/* =================================================
           REPORT
-      ========================================== */}
+      ================================================== */}
 
-      <ReportChart
-        data={dashboardData.chartData}
-      />
+      {dashboardData.chartData.length >
+        0 && (
+        <ReportChart
+          data={dashboardData.chartData}
+        />
+      )}
     </motion.div>
   );
 };

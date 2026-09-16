@@ -87,16 +87,7 @@ const AdminDashboard = () => {
           election?.status === "LIVE"
       ).length;
 
-      /*
-       * ============================
-       * TOTAL VOTES
-       * ============================
-       *
-       * Election.totalVotes is used only
-       * if the backend provides it.
-       *
-       * Otherwise we don't invent a number.
-       */
+
 
       const totalVotes = elections.reduce(
         (total, election) => {
