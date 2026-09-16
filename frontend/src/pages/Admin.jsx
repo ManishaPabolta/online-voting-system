@@ -1184,7 +1184,39 @@ const UserVerificationCard = ({
     </motion.div>
   );
 };
+const toSafeString = (value) => {
+  if (typeof value === "string") {
+    return value;
+  }
 
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => toSafeString(item))
+      .filter(Boolean)
+      .join("\n");
+  }
+
+  if (value && typeof value === "object") {
+    if (typeof value.text === "string") {
+      return value.text;
+    }
+
+    if (typeof value.value === "string") {
+      return value.value;
+    }
+
+    if (typeof value.content === "string") {
+      return value.content;
+    }
+
+    return Object.values(value)
+      .map((item) => toSafeString(item))
+      .filter(Boolean)
+      .join("\n");
+  }
+
+  return value == null ? "" : String(value);
+};
 /* =========================================================
    MAIN ADMIN COMPONENT
 ========================================================= */
@@ -1655,88 +1687,87 @@ const Admin = () => {
     });
   };
 
-  /* =======================================================
-     CREATE ELECTION
-  ======================================================= */
+ /* =======================================================
+   CREATE ELECTION
+======================================================= */
 
-  const handleCreate = async (
-    event
-  ) => {
-    event.preventDefault();
+const handleCreate = async (event) => {
+  event.preventDefault();
 
-    if (!form.title.trim()) {
-      setElectionError(
-        "Election title is required."
-      );
-      return;
-    }
+  const title = toSafeString(form.title).trim();
+  const description = toSafeString(form.description).trim();
+  const bannerImage = toSafeString(form.bannerImage).trim();
+  const instructions = toSafeString(form.instructions).trim();
 
-    if (!form.startDate) {
-      setElectionError(
-        "Election start date is required."
-      );
-      return;
-    }
+  /* ================= VALIDATION ================= */
 
-    if (
-      form.endDate &&
-      new Date(form.endDate) <=
-        new Date(form.startDate)
-    ) {
-      setElectionError(
-        "End date must be after the start date."
-      );
-      return;
-    }
+  if (!title) {
+    setElectionError("Election title is required.");
+    return;
+  }
 
-    try {
-      setSubmitting(true);
-      setElectionError("");
+  if (!form.startDate) {
+    setElectionError("Election start date is required.");
+    return;
+  }
 
-      await createElection({
-        title: form.title.trim(),
-        description:
-          form.description.trim(),
-        electionType:
-          form.electionType,
-        startDate:
-          form.startDate,
-        endDate:
-          form.endDate || undefined,
-        bannerImage:
-          form.bannerImage.trim() ||
-          undefined,
-        instructions:
-          form.instructions.trim() ||
-          undefined,
-        allowResultsBeforeEnd:
-          Boolean(
-            form.allowResultsBeforeEnd
-          ),
-      });
+  if (
+    form.endDate &&
+    new Date(form.endDate) <= new Date(form.startDate)
+  ) {
+    setElectionError(
+      "End date must be after the start date."
+    );
+    return;
+  }
 
-      toast.success(
-        "Election created successfully."
-      );
+  /* ================= SUBMIT ================= */
 
-      resetElectionForm();
+  try {
+    setSubmitting(true);
+    setElectionError("");
 
-      await loadElections();
-    } catch (error) {
-      console.error(
-        "Create election error:",
-        error
-      );
+    const electionData = {
+      title,
+      description,
+      electionType: form.electionType,
+      startDate: form.startDate,
+      endDate: form.endDate || undefined,
+      bannerImage: bannerImage || undefined,
+      instructions: instructions || undefined,
+      allowResultsBeforeEnd: Boolean(
+        form.allowResultsBeforeEnd
+      ),
+    };
 
-      const message =
-        getErrorMessage(error);
+    console.log(
+      "Creating election with data:",
+      electionData
+    );
 
-      setElectionError(message);
-      toast.error(message);
-    } finally {
-      setSubmitting(false);
-    }
-  };
+    await createElection(electionData);
+
+    toast.success(
+      "Election created successfully."
+    );
+
+    resetElectionForm();
+
+    await loadElections();
+  } catch (error) {
+    console.error(
+      "Create election error:",
+      error
+    );
+
+    const message = getErrorMessage(error);
+
+    setElectionError(message);
+    toast.error(message);
+  } finally {
+    setSubmitting(false);
+  }
+};
 
   /* =======================================================
      EDIT ELECTION
@@ -1804,104 +1835,109 @@ const Admin = () => {
       behavior: "smooth",
     });
   };
+/* =======================================================
+   UPDATE ELECTION
+======================================================= */
 
-  /* =======================================================
-     UPDATE ELECTION
-  ======================================================= */
+const handleUpdate = async (event) => {
+  event.preventDefault();
 
-  const handleUpdate = async (
-    event
-  ) => {
-    event.preventDefault();
+  if (!editId) {
+    return;
+  }
 
-    if (!editId) return;
+  /* ================= SAFE VALUES ================= */
 
-    if (!form.title.trim()) {
-      setElectionError(
-        "Election title is required."
-      );
-      return;
-    }
+  const title = toSafeString(form.title).trim();
+  const description = toSafeString(form.description).trim();
+  const bannerImage = toSafeString(form.bannerImage).trim();
+  const instructions = toSafeString(form.instructions).trim();
 
-    if (!form.startDate) {
-      setElectionError(
-        "Election start date is required."
-      );
-      return;
-    }
+  /* ================= VALIDATION ================= */
 
-    if (
-      form.endDate &&
-      new Date(form.endDate) <=
-        new Date(form.startDate)
-    ) {
-      setElectionError(
-        "End date must be after the start date."
-      );
-      return;
-    }
+  if (!title) {
+    setElectionError(
+      "Election title is required."
+    );
+    return;
+  }
 
-    try {
-      setSubmitting(true);
-      setElectionError("");
+  if (!form.startDate) {
+    setElectionError(
+      "Election start date is required."
+    );
+    return;
+  }
 
-      await updateElection(
-        editId,
-        {
-          title:
-            form.title.trim(),
+  if (
+    form.endDate &&
+    new Date(form.endDate) <=
+      new Date(form.startDate)
+  ) {
+    setElectionError(
+      "End date must be after the start date."
+    );
+    return;
+  }
 
-          description:
-            form.description.trim(),
+  try {
+    setSubmitting(true);
+    setElectionError("");
 
-          electionType:
-            form.electionType,
+    /* ================= UPDATE PAYLOAD ================= */
 
-          startDate:
-            form.startDate,
+    const electionData = {
+      title,
+      description,
+      electionType: form.electionType,
+      startDate: form.startDate,
+      endDate: form.endDate || undefined,
+      bannerImage: bannerImage || undefined,
+      instructions: instructions || undefined,
+      allowResultsBeforeEnd: Boolean(
+        form.allowResultsBeforeEnd
+      ),
+    };
 
-          endDate:
-            form.endDate ||
-            undefined,
+    console.log(
+      "Updating election:",
+      editId,
+      electionData
+    );
 
-          bannerImage:
-            form.bannerImage.trim() ||
-            undefined,
+    /* ================= API CALL ================= */
 
-          instructions:
-            form.instructions.trim() ||
-            undefined,
+    await updateElection(
+      editId,
+      electionData
+    );
 
-          allowResultsBeforeEnd:
-            Boolean(
-              form.allowResultsBeforeEnd
-            ),
-        }
-      );
+    /* ================= SUCCESS ================= */
 
-      toast.success(
-        "Election updated successfully."
-      );
+    toast.success(
+      "Election updated successfully."
+    );
 
-      resetElectionForm();
+    resetElectionForm();
 
-      await loadElections();
-    } catch (error) {
-      console.error(
-        "Update election error:",
-        error
-      );
+    await loadElections();
 
-      const message =
-        getErrorMessage(error);
+  } catch (error) {
+    console.error(
+      "Update election error:",
+      error
+    );
 
-      setElectionError(message);
-      toast.error(message);
-    } finally {
-      setSubmitting(false);
-    }
-  };
+    const message =
+      getErrorMessage(error);
 
+    setElectionError(message);
+    toast.error(message);
+
+  } finally {
+    setSubmitting(false);
+  }
+};
   /* =======================================================
      DELETE ELECTION
   ======================================================= */
