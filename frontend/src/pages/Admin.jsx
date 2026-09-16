@@ -77,6 +77,8 @@ const ELECTION_TYPES = [
   "OTHER",
 ];
 
+const LOCKED_STATUSES = ["LIVE", "COMPLETED", "CANCELLED"];
+
 const STATUS_STYLES = {
   DRAFT: {
     label: "Draft",
@@ -125,9 +127,7 @@ const getErrorMessage = (error) => {
 const getElectionsFromResponse = (response) => {
   const data = response?.data || response;
 
-  if (Array.isArray(data)) {
-    return data;
-  }
+  if (Array.isArray(data)) return data;
 
   if (Array.isArray(data?.elections)) {
     return data.elections;
@@ -143,9 +143,7 @@ const getElectionsFromResponse = (response) => {
 const getCandidatesFromResponse = (response) => {
   const data = response?.data || response;
 
-  if (Array.isArray(data)) {
-    return data;
-  }
+  if (Array.isArray(data)) return data;
 
   if (Array.isArray(data?.candidates)) {
     return data.candidates;
@@ -201,16 +199,27 @@ const getStatus = (election) => {
   );
 };
 
+const isElectionLocked = (election) => {
+  return LOCKED_STATUSES.includes(
+    election?.status?.toUpperCase()
+  );
+};
+
 /* =========================================================
-   SMALL COMPONENTS
+   REUSABLE FORM COMPONENTS
 ========================================================= */
 
-const FieldLabel = ({ children, required = false }) => (
+const FieldLabel = ({
+  children,
+  required = false,
+}) => (
   <label className="mb-2 block text-sm font-semibold text-slate-300">
     {children}
 
     {required && (
-      <span className="ml-1 text-red-400">*</span>
+      <span className="ml-1 text-red-400">
+        *
+      </span>
     )}
   </label>
 );
@@ -240,6 +249,7 @@ const Textarea = ({
   onChange,
   placeholder,
   rows = 4,
+  disabled = false,
 }) => (
   <textarea
     name={name}
@@ -247,7 +257,8 @@ const Textarea = ({
     onChange={onChange}
     rows={rows}
     placeholder={placeholder}
-    className="w-full resize-none rounded-xl border border-white/10 bg-slate-900/70 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-emerald-400/40 focus:ring-2 focus:ring-emerald-500/10"
+    disabled={disabled}
+    className="w-full resize-none rounded-xl border border-white/10 bg-slate-900/70 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-emerald-400/40 focus:ring-2 focus:ring-emerald-500/10 disabled:cursor-not-allowed disabled:opacity-50"
   />
 );
 
@@ -265,43 +276,61 @@ const CandidateForm = ({
   onCancel,
 }) => {
   const handleChange = (event) => {
-    const { name, value, type, checked } =
-      event.target;
+    const {
+      name,
+      value,
+      type,
+      checked,
+    } = event.target;
 
     setCandidateForm((previous) => ({
       ...previous,
       [name]:
-        type === "checkbox" ? checked : value,
+        type === "checkbox"
+          ? checked
+          : value,
     }));
   };
 
   return (
     <motion.div
-      initial={{ opacity: 0, height: 0 }}
-      animate={{ opacity: 1, height: "auto" }}
-      exit={{ opacity: 0, height: 0 }}
+      initial={{
+        opacity: 0,
+        height: 0,
+      }}
+      animate={{
+        opacity: 1,
+        height: "auto",
+      }}
+      exit={{
+        opacity: 0,
+        height: 0,
+      }}
       className="overflow-hidden"
     >
-      <div className="mt-5 rounded-2xl border border-emerald-400/15 bg-emerald-500/[0.035] p-5">
-        <div className="mb-5 flex items-center justify-between gap-4">
+      <div className="mt-5 rounded-2xl border border-emerald-400/15 bg-emerald-500/[0.035] p-5 sm:p-6">
+        <div className="mb-5 flex items-start justify-between gap-4">
           <div>
             <div className="flex items-center gap-2">
-              <UserPlus
-                size={18}
-                className="text-emerald-400"
-              />
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-500/10">
+                <UserPlus
+                  size={18}
+                  className="text-emerald-400"
+                />
+              </div>
 
-              <h4 className="font-bold text-white">
-                {editingCandidateId
-                  ? "Edit Candidate"
-                  : "Add Candidate / Option"}
-              </h4>
+              <div>
+                <h4 className="font-bold text-white">
+                  {editingCandidateId
+                    ? "Edit Candidate"
+                    : "Add Candidate / Voting Option"}
+                </h4>
+
+                <p className="mt-0.5 text-xs text-slate-500">
+                  Add as many voting options as required.
+                </p>
+              </div>
             </div>
-
-            <p className="mt-1 text-xs text-slate-500">
-              Add as many candidates/options as required
-              for this election.
-            </p>
           </div>
 
           <button
@@ -324,7 +353,7 @@ const CandidateForm = ({
           <div className="grid gap-5 md:grid-cols-2">
             <div>
               <FieldLabel required>
-                Name
+                Candidate Name
               </FieldLabel>
 
               <Input
@@ -355,7 +384,7 @@ const CandidateForm = ({
           <div className="grid gap-5 md:grid-cols-2">
             <div>
               <FieldLabel>
-                Photo URL
+                Candidate Photo URL
               </FieldLabel>
 
               <div className="relative">
@@ -418,6 +447,7 @@ const CandidateForm = ({
               onChange={handleChange}
               placeholder="Candidate manifesto"
               rows={4}
+              disabled={candidateSubmitting}
             />
           </div>
 
@@ -434,6 +464,7 @@ const CandidateForm = ({
                 onChange={handleChange}
                 placeholder="Candidate biography"
                 rows={4}
+                disabled={candidateSubmitting}
               />
             </div>
 
@@ -448,18 +479,20 @@ const CandidateForm = ({
                 onChange={handleChange}
                 placeholder="Candidate experience"
                 rows={4}
+                disabled={candidateSubmitting}
               />
             </div>
           </div>
 
           {/* Active */}
-          <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-white/10 bg-white/[0.025] p-4">
+          <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-white/10 bg-white/[0.025] p-4">
             <input
               type="checkbox"
               name="isActive"
               checked={candidateForm.isActive}
               onChange={handleChange}
-              className="h-4 w-4 accent-emerald-500"
+              disabled={candidateSubmitting}
+              className="mt-1 h-4 w-4 accent-emerald-500"
             />
 
             <div>
@@ -467,14 +500,14 @@ const CandidateForm = ({
                 Active Candidate
               </p>
 
-              <p className="text-xs text-slate-500">
+              <p className="mt-1 text-xs leading-5 text-slate-500">
                 Active candidates are available for voting.
               </p>
             </div>
           </label>
 
           {/* Buttons */}
-          <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
+          <div className="flex flex-col gap-3 pt-2 sm:flex-row sm:justify-end">
             <button
               type="button"
               onClick={onCancel}
@@ -517,7 +550,7 @@ const CandidateForm = ({
 };
 
 /* =========================================================
-   CANDIDATE CARD
+   CANDIDATE ITEM
 ========================================================= */
 
 const CandidateItem = ({
@@ -525,6 +558,7 @@ const CandidateItem = ({
   onEdit,
   onDelete,
   actionId,
+  readOnly,
 }) => {
   const isLoading =
     actionId === candidate?._id;
@@ -547,6 +581,7 @@ const CandidateItem = ({
       className="rounded-2xl border border-white/10 bg-slate-950/40 p-4"
     >
       <div className="flex items-start gap-4">
+        {/* Photo */}
         <div className="h-14 w-14 shrink-0 overflow-hidden rounded-2xl border border-white/10 bg-white/5">
           {candidate?.photo ? (
             <img
@@ -565,10 +600,12 @@ const CandidateItem = ({
           )}
         </div>
 
+        {/* Details */}
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <h5 className="truncate font-bold text-white">
-              {candidate?.name || "Unnamed Candidate"}
+            <h5 className="break-words font-bold text-white">
+              {candidate?.name ||
+                "Unnamed Candidate"}
             </h5>
 
             <span
@@ -597,41 +634,45 @@ const CandidateItem = ({
           )}
         </div>
 
-        <div className="flex shrink-0 gap-2">
-          <button
-            type="button"
-            onClick={() => onEdit(candidate)}
-            disabled={isLoading}
-            className="rounded-xl border border-white/10 bg-white/[0.04] p-2 text-slate-400 transition hover:border-emerald-400/20 hover:bg-emerald-500/10 hover:text-emerald-300 disabled:opacity-50"
-            title="Edit candidate"
-          >
-            <Edit3 size={15} />
-          </button>
+        {/* Actions */}
+        {!readOnly && (
+          <div className="flex shrink-0 gap-2">
+            <button
+              type="button"
+              onClick={() => onEdit(candidate)}
+              disabled={isLoading}
+              className="rounded-xl border border-white/10 bg-white/[0.04] p-2 text-slate-400 transition hover:border-emerald-400/20 hover:bg-emerald-500/10 hover:text-emerald-300 disabled:opacity-50"
+              title="Edit candidate"
+            >
+              <Edit3 size={15} />
+            </button>
 
-          <button
-            type="button"
-            onClick={() => onDelete(candidate)}
-            disabled={isLoading}
-            className="rounded-xl border border-red-400/20 bg-red-500/10 p-2 text-red-300 transition hover:bg-red-500/20 disabled:opacity-50"
-            title="Delete candidate"
-          >
-            {isLoading ? (
-              <Loader2
-                size={15}
-                className="animate-spin"
-              />
-            ) : (
-              <Trash2 size={15} />
-            )}
-          </button>
-        </div>
+            <button
+              type="button"
+              onClick={() => onDelete(candidate)}
+              disabled={isLoading}
+              className="rounded-xl border border-red-400/20 bg-red-500/10 p-2 text-red-300 transition hover:bg-red-500/20 disabled:opacity-50"
+              title="Delete candidate"
+            >
+              {isLoading ? (
+                <Loader2
+                  size={15}
+                  className="animate-spin"
+                />
+              ) : (
+                <Trash2 size={15} />
+              )}
+            </button>
+          </div>
+        )}
       </div>
 
+      {/* Extra information */}
       {(candidate?.manifesto ||
         candidate?.biography ||
         candidate?.experience ||
         candidate?.symbol) && (
-        <div className="mt-4 grid gap-2 border-t border-white/5 pt-4 sm:grid-cols-2">
+        <div className="mt-4 grid gap-3 border-t border-white/5 pt-4 sm:grid-cols-2">
           {candidate?.symbol && (
             <div>
               <p className="text-[10px] font-bold uppercase tracking-wider text-slate-600">
@@ -652,6 +693,30 @@ const CandidateItem = ({
 
               <p className="mt-1 line-clamp-2 text-xs text-slate-400">
                 {candidate.experience}
+              </p>
+            </div>
+          )}
+
+          {candidate?.biography && (
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-600">
+                Biography
+              </p>
+
+              <p className="mt-1 line-clamp-2 text-xs text-slate-400">
+                {candidate.biography}
+              </p>
+            </div>
+          )}
+
+          {candidate?.manifesto && (
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-600">
+                Manifesto
+              </p>
+
+              <p className="mt-1 line-clamp-2 text-xs text-slate-400">
+                {candidate.manifesto}
               </p>
             </div>
           )}
@@ -711,7 +776,7 @@ const ManageElections = () => {
     useState("");
 
   /* =======================================================
-     LOAD ELECTIONS
+     LOAD DATA
   ======================================================= */
 
   const loadData = async () => {
@@ -727,38 +792,36 @@ const ManageElections = () => {
 
       setElections(electionData);
 
-      /*
-       * Candidate data is loaded separately because
-       * candidates are managed through /api/candidates.
-       */
       const candidateResults =
         await Promise.all(
-          electionData.map(async (election) => {
-            try {
-              const candidateResponse =
-                await getCandidates({
-                  election: election._id,
-                });
+          electionData.map(
+            async (election) => {
+              try {
+                const candidateResponse =
+                  await getCandidates({
+                    election: election._id,
+                  });
 
-              return {
-                electionId: election._id,
-                candidates:
-                  getCandidatesFromResponse(
-                    candidateResponse
-                  ),
-              };
-            } catch (candidateError) {
-              console.error(
-                `Failed to load candidates for ${election._id}:`,
-                candidateError
-              );
+                return {
+                  electionId: election._id,
+                  candidates:
+                    getCandidatesFromResponse(
+                      candidateResponse
+                    ),
+                };
+              } catch (candidateError) {
+                console.error(
+                  `Failed to load candidates for ${election._id}:`,
+                  candidateError
+                );
 
-              return {
-                electionId: election._id,
-                candidates: [],
-              };
+                return {
+                  electionId: election._id,
+                  candidates: [],
+                };
+              }
             }
-          })
+          )
         );
 
       const candidateMap = {};
@@ -790,7 +853,7 @@ const ManageElections = () => {
   }, []);
 
   /* =======================================================
-     FORM CHANGE
+     ELECTION FORM
   ======================================================= */
 
   const handleElectionChange = (event) => {
@@ -810,23 +873,22 @@ const ManageElections = () => {
     }));
   };
 
-  /* =======================================================
-     RESET ELECTION FORM
-  ======================================================= */
-
   const resetElectionForm = () => {
-    setForm(INITIAL_ELECTION_FORM);
+    setForm({
+      ...INITIAL_ELECTION_FORM,
+    });
+
     setEditId(null);
     setShowForm(false);
   };
 
-  /* =======================================================
-     OPEN CREATE
-  ======================================================= */
-
   const openCreateForm = () => {
     setEditId(null);
-    setForm(INITIAL_ELECTION_FORM);
+
+    setForm({
+      ...INITIAL_ELECTION_FORM,
+    });
+
     setError("");
     setShowForm(true);
 
@@ -872,44 +934,165 @@ const ManageElections = () => {
       setSubmitting(true);
       setError("");
 
-      await createElection({
-        title: form.title.trim(),
-        description:
-          form.description.trim(),
-        electionType:
-          form.electionType,
-        startDate:
-          form.startDate,
-        endDate:
-          form.endDate || undefined,
-        bannerImage:
-          form.bannerImage.trim() ||
-          undefined,
-        instructions:
-          form.instructions.trim() ||
-          undefined,
-        allowResultsBeforeEnd:
-          Boolean(
-            form.allowResultsBeforeEnd
-          ),
-      });
+      const response =
+        await createElection({
+          title: form.title.trim(),
+
+          description:
+            form.description.trim(),
+
+          electionType:
+            form.electionType,
+
+          startDate:
+            form.startDate,
+
+          endDate:
+            form.endDate || undefined,
+
+          bannerImage:
+            form.bannerImage.trim() ||
+            undefined,
+
+          instructions:
+            form.instructions.trim() ||
+            undefined,
+
+          allowResultsBeforeEnd:
+            Boolean(
+              form.allowResultsBeforeEnd
+            ),
+        });
+
+      /*
+       * Get newly created election ID
+       * from backend response.
+       */
+      const createdElection =
+        response?.election ||
+        response?.data?.election ||
+        response?.data ||
+        null;
+
+      const createdElectionId =
+        createdElection?._id;
 
       toast.success(
         "Election created successfully."
       );
 
-      resetElectionForm();
+      /*
+       * Reset only the election form.
+       */
+      setForm({
+        ...INITIAL_ELECTION_FORM,
+      });
+
+      setShowForm(false);
+      setEditId(null);
+
+      /*
+       * Refresh elections.
+       */
       await loadData();
+
+      /*
+       * IMPORTANT:
+       * Automatically open Candidate Management
+       * after election creation.
+       */
+      if (createdElectionId) {
+        setExpandedElection(
+          createdElectionId
+        );
+
+        setShowCandidateForm(
+          createdElectionId
+        );
+
+        setEditingCandidateId(null);
+
+        setCandidateForm({
+          ...INITIAL_CANDIDATE_FORM,
+        });
+
+        setTimeout(() => {
+          const element =
+            document.getElementById(
+              `election-${createdElectionId}`
+            );
+
+          element?.scrollIntoView({
+            behavior: "smooth",
+            block: "center",
+          });
+        }, 250);
+      } else {
+        /*
+         * Fallback:
+         * if backend response doesn't contain
+         * election ID, find newest election.
+         */
+        const refreshed =
+          await getAllElections();
+
+        const refreshedElections =
+          getElectionsFromResponse(
+            refreshed
+          );
+
+        if (refreshedElections.length > 0) {
+          const newest =
+            refreshedElections
+              .slice()
+              .sort(
+                (a, b) =>
+                  new Date(
+                    b.createdAt || b.startDate
+                  ) -
+                  new Date(
+                    a.createdAt || a.startDate
+                  )
+              )[0];
+
+          if (newest?._id) {
+            setExpandedElection(
+              newest._id
+            );
+
+            setShowCandidateForm(
+              newest._id
+            );
+
+            setCandidateForm({
+              ...INITIAL_CANDIDATE_FORM,
+            });
+
+            setTimeout(() => {
+              const element =
+                document.getElementById(
+                  `election-${newest._id}`
+                );
+
+              element?.scrollIntoView({
+                behavior: "smooth",
+                block: "center",
+              });
+            }, 250);
+          }
+        }
+      }
     } catch (err) {
       console.error(
         "Create election error:",
         err
       );
 
-      setError(getErrorMessage(err));
-      toast.error(
-        getErrorMessage(err)
-      );
+      const message =
+        getErrorMessage(err);
+
+      setError(message);
+      toast.error(message);
     } finally {
       setSubmitting(false);
     }
@@ -920,16 +1103,7 @@ const ManageElections = () => {
   ======================================================= */
 
   const handleEdit = (election) => {
-    const status =
-      election?.status?.toUpperCase();
-
-    if (
-      [
-        "LIVE",
-        "COMPLETED",
-        "CANCELLED",
-      ].includes(status)
-    ) {
+    if (isElectionLocked(election)) {
       toast.error(
         "This election cannot be edited in its current state."
       );
@@ -940,23 +1114,30 @@ const ManageElections = () => {
 
     setForm({
       title: election.title || "",
+
       description:
         election.description || "",
+
       electionType:
         election.electionType ||
         "OTHER",
+
       startDate:
         formatDateTimeLocal(
           election.startDate
         ),
+
       endDate:
         formatDateTimeLocal(
           election.endDate
         ),
+
       bannerImage:
         election.bannerImage || "",
+
       instructions:
         election.instructions || "",
+
       allowResultsBeforeEnd:
         Boolean(
           election.allowResultsBeforeEnd
@@ -1012,20 +1193,27 @@ const ManageElections = () => {
 
       await updateElection(editId, {
         title: form.title.trim(),
+
         description:
           form.description.trim(),
+
         electionType:
           form.electionType,
+
         startDate:
           form.startDate,
+
         endDate:
           form.endDate || undefined,
+
         bannerImage:
           form.bannerImage.trim() ||
           undefined,
+
         instructions:
           form.instructions.trim() ||
           undefined,
+
         allowResultsBeforeEnd:
           Boolean(
             form.allowResultsBeforeEnd
@@ -1037,6 +1225,7 @@ const ManageElections = () => {
       );
 
       resetElectionForm();
+
       await loadData();
     } catch (err) {
       console.error(
@@ -1044,10 +1233,11 @@ const ManageElections = () => {
         err
       );
 
-      setError(getErrorMessage(err));
-      toast.error(
-        getErrorMessage(err)
-      );
+      const message =
+        getErrorMessage(err);
+
+      setError(message);
+      toast.error(message);
     } finally {
       setSubmitting(false);
     }
@@ -1076,6 +1266,20 @@ const ManageElections = () => {
       toast.success(
         "Election deleted successfully."
       );
+
+      if (
+        expandedElection ===
+        election._id
+      ) {
+        setExpandedElection(null);
+      }
+
+      if (
+        showCandidateForm ===
+        election._id
+      ) {
+        setShowCandidateForm(null);
+      }
 
       await loadData();
     } catch (err) {
@@ -1118,6 +1322,16 @@ const ManageElections = () => {
         "Election published successfully."
       );
 
+      /*
+       * Close candidate form after publishing.
+       */
+      if (
+        showCandidateForm ===
+        election._id
+      ) {
+        setShowCandidateForm(null);
+      }
+
       await loadData();
     } catch (err) {
       console.error(
@@ -1136,7 +1350,7 @@ const ManageElections = () => {
   };
 
   /* =======================================================
-     CANCEL
+     CANCEL ELECTION
   ======================================================= */
 
   const handleCancel = async (election) => {
@@ -1159,6 +1373,13 @@ const ManageElections = () => {
         "Election cancelled successfully."
       );
 
+      if (
+        showCandidateForm ===
+        election._id
+      ) {
+        setShowCandidateForm(null);
+      }
+
       await loadData();
     } catch (err) {
       console.error(
@@ -1177,13 +1398,29 @@ const ManageElections = () => {
   };
 
   /* =======================================================
-     OPEN CANDIDATE FORM
+     CANDIDATE FORM
   ======================================================= */
 
   const openCandidateForm = (
     electionId,
     candidate = null
   ) => {
+    const election =
+      elections.find(
+        (item) =>
+          item._id === electionId
+      );
+
+    if (
+      election &&
+      isElectionLocked(election)
+    ) {
+      toast.error(
+        "Candidates cannot be changed after the election becomes live, completed, or cancelled."
+      );
+      return;
+    }
+
     setError("");
 
     if (candidate) {
@@ -1209,28 +1446,26 @@ const ManageElections = () => {
       });
     } else {
       setEditingCandidateId(null);
-      setCandidateForm(
-        INITIAL_CANDIDATE_FORM
-      );
-    }
 
-    setShowCandidateForm(
-      electionId
-    );
+      setCandidateForm({
+        ...INITIAL_CANDIDATE_FORM,
+      });
+    }
 
     setExpandedElection(
       electionId
     );
+
+    setShowCandidateForm(
+      electionId
+    );
   };
 
-  /* =======================================================
-     RESET CANDIDATE FORM
-  ======================================================= */
-
   const resetCandidateForm = () => {
-    setCandidateForm(
-      INITIAL_CANDIDATE_FORM
-    );
+    setCandidateForm({
+      ...INITIAL_CANDIDATE_FORM,
+    });
+
     setEditingCandidateId(null);
     setShowCandidateForm(null);
   };
@@ -1252,27 +1487,52 @@ const ManageElections = () => {
       return;
     }
 
+    const election =
+      elections.find(
+        (item) =>
+          item._id === electionId
+      );
+
+    if (
+      election &&
+      isElectionLocked(election)
+    ) {
+      toast.error(
+        "Candidates cannot be changed in this election state."
+      );
+      return;
+    }
+
     try {
       setCandidateSubmitting(true);
 
       const payload = {
         election: electionId,
+
         name:
           candidateForm.name.trim(),
+
         party:
           candidateForm.party.trim(),
+
         symbol:
           candidateForm.symbol.trim(),
+
         photo:
           candidateForm.photo.trim(),
+
         manifesto:
           candidateForm.manifesto.trim(),
+
         biography:
           candidateForm.biography.trim(),
+
         experience:
           candidateForm.experience.trim(),
+
         position:
           candidateForm.position.trim(),
+
         isActive:
           Boolean(
             candidateForm.isActive
@@ -1315,7 +1575,25 @@ const ManageElections = () => {
         );
       }
 
-      resetCandidateForm();
+      /*
+       * Keep candidate management OPEN
+       * after adding a candidate.
+       * This allows admin to immediately
+       * add Candidate 2, Candidate 3, etc.
+       */
+      setEditingCandidateId(null);
+
+      setCandidateForm({
+        ...INITIAL_CANDIDATE_FORM,
+      });
+
+      setShowCandidateForm(
+        electionId
+      );
+
+      setExpandedElection(
+        electionId
+      );
 
       await loadData();
     } catch (err) {
@@ -1339,6 +1617,42 @@ const ManageElections = () => {
   const handleCandidateDelete = async (
     candidate
   ) => {
+    const election =
+      elections.find(
+        (item) =>
+          item._id ===
+          candidate?.election
+      );
+
+    /*
+     * Candidate returned from backend may have
+     * populated election object.
+     */
+    const electionId =
+      typeof candidate?.election ===
+      "object"
+        ? candidate.election?._id
+        : candidate?.election;
+
+    const parentElection =
+      election ||
+      elections.find(
+        (item) =>
+          item._id === electionId
+      );
+
+    if (
+      parentElection &&
+      isElectionLocked(
+        parentElection
+      )
+    ) {
+      toast.error(
+        "Candidates cannot be deleted in this election state."
+      );
+      return;
+    }
+
     const confirmed =
       window.confirm(
         `Delete candidate "${candidate?.name || "this candidate"}"?`
@@ -1375,7 +1689,7 @@ const ManageElections = () => {
   };
 
   /* =======================================================
-     TOGGLE ELECTION CANDIDATES
+     TOGGLE CANDIDATES
   ======================================================= */
 
   const toggleCandidates = (
@@ -1387,6 +1701,17 @@ const ManageElections = () => {
           ? null
           : electionId
     );
+
+    /*
+     * If closing the election,
+     * also close candidate form.
+     */
+    if (
+      expandedElection ===
+      electionId
+    ) {
+      setShowCandidateForm(null);
+    }
   };
 
   /* =======================================================
@@ -1396,7 +1721,6 @@ const ManageElections = () => {
   return (
     <div className="min-h-screen bg-slate-950 px-4 py-6 text-white sm:px-6 lg:px-8">
       <div className="mx-auto max-w-7xl">
-
         {/* =================================================
             HEADER
         ================================================== */}
@@ -1423,9 +1747,10 @@ const ManageElections = () => {
             </h1>
 
             <p className="mt-2 max-w-2xl text-sm text-slate-500 sm:text-base">
-              Create elections and manage their
-              candidates or voting options from one
-              place.
+              Create elections, add unlimited
+              candidates or voting options,
+              and manage the complete election
+              lifecycle.
             </p>
           </div>
 
@@ -1502,7 +1827,7 @@ const ManageElections = () => {
         </AnimatePresence>
 
         {/* =================================================
-            ELECTION FORM
+            CREATE / UPDATE ELECTION FORM
         ================================================== */}
 
         <AnimatePresence>
@@ -1526,14 +1851,15 @@ const ManageElections = () => {
               className="mb-8 overflow-hidden"
             >
               <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-5 shadow-2xl backdrop-blur-xl sm:p-7">
-
                 <div className="mb-6 flex items-start justify-between gap-4">
                   <div>
                     <div className="flex items-center gap-2">
-                      <FileText
-                        size={19}
-                        className="text-emerald-400"
-                      />
+                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/10">
+                        <FileText
+                          size={19}
+                          className="text-emerald-400"
+                        />
+                      </div>
 
                       <h2 className="text-xl font-bold sm:text-2xl">
                         {editId
@@ -1543,8 +1869,9 @@ const ManageElections = () => {
                     </div>
 
                     <p className="mt-2 text-sm text-slate-500">
-                      Configure the election before
-                      adding candidates.
+                      {editId
+                        ? "Update the election configuration."
+                        : "Configure the election first. After creation, candidate management will open automatically."}
                     </p>
                   </div>
 
@@ -1553,7 +1880,8 @@ const ManageElections = () => {
                     onClick={
                       resetElectionForm
                     }
-                    className="rounded-xl border border-white/10 p-2 text-slate-400 transition hover:bg-white/5 hover:text-white"
+                    disabled={submitting}
+                    className="rounded-xl border border-white/10 p-2 text-slate-400 transition hover:bg-white/5 hover:text-white disabled:opacity-50"
                   >
                     <X size={19} />
                   </button>
@@ -1580,13 +1908,11 @@ const ManageElections = () => {
                         handleElectionChange
                       }
                       placeholder="Enter election title"
-                      disabled={
-                        submitting
-                      }
+                      disabled={submitting}
                     />
                   </div>
 
-                  {/* Election type */}
+                  {/* Election Type */}
                   <div>
                     <FieldLabel required>
                       Election Type
@@ -1601,9 +1927,7 @@ const ManageElections = () => {
                         onChange={
                           handleElectionChange
                         }
-                        disabled={
-                          submitting
-                        }
+                        disabled={submitting}
                         className="w-full appearance-none rounded-xl border border-white/10 bg-slate-900/70 px-4 py-3 text-sm text-white outline-none transition focus:border-emerald-400/40 focus:ring-2 focus:ring-emerald-500/10 disabled:opacity-50"
                       >
                         {ELECTION_TYPES.map(
@@ -1642,6 +1966,7 @@ const ManageElections = () => {
                       }
                       placeholder="Describe this election"
                       rows={4}
+                      disabled={submitting}
                     />
                   </div>
 
@@ -1667,9 +1992,7 @@ const ManageElections = () => {
                           onChange={
                             handleElectionChange
                           }
-                          disabled={
-                            submitting
-                          }
+                          disabled={submitting}
                           className="w-full rounded-xl border border-white/10 bg-slate-900/70 py-3 pl-11 pr-4 text-sm text-white outline-none transition focus:border-emerald-400/40 focus:ring-2 focus:ring-emerald-500/10 disabled:opacity-50"
                         />
                       </div>
@@ -1695,9 +2018,7 @@ const ManageElections = () => {
                           onChange={
                             handleElectionChange
                           }
-                          disabled={
-                            submitting
-                          }
+                          disabled={submitting}
                           className="w-full rounded-xl border border-white/10 bg-slate-900/70 py-3 pl-11 pr-4 text-sm text-white outline-none transition focus:border-emerald-400/40 focus:ring-2 focus:ring-emerald-500/10 disabled:opacity-50"
                         />
                       </div>
@@ -1720,9 +2041,7 @@ const ManageElections = () => {
                         handleElectionChange
                       }
                       placeholder="https://example.com/banner.jpg"
-                      disabled={
-                        submitting
-                      }
+                      disabled={submitting}
                     />
                   </div>
 
@@ -1742,6 +2061,7 @@ const ManageElections = () => {
                       }
                       placeholder="Instructions voters should follow"
                       rows={4}
+                      disabled={submitting}
                     />
                   </div>
 
@@ -1756,9 +2076,7 @@ const ManageElections = () => {
                       onChange={
                         handleElectionChange
                       }
-                      disabled={
-                        submitting
-                      }
+                      disabled={submitting}
                       className="mt-1 h-4 w-4 accent-emerald-500"
                     />
 
@@ -1769,26 +2087,36 @@ const ManageElections = () => {
                       </p>
 
                       <p className="mt-1 text-xs leading-5 text-slate-500">
-                        This setting is controlled by
-                        the election backend and can
-                        be enabled when required.
+                        This setting controls whether
+                        results can be shown before
+                        the election ends.
                       </p>
                     </div>
                   </label>
 
-                  {/* Info */}
-                  <div className="flex gap-3 rounded-2xl border border-teal-400/15 bg-teal-500/[0.05] p-4">
-                    <Info
-                      size={18}
-                      className="mt-0.5 shrink-0 text-teal-400"
-                    />
+                  {/* Candidate information */}
+                  {!editId && (
+                    <div className="flex gap-3 rounded-2xl border border-teal-400/15 bg-teal-500/[0.05] p-4">
+                      <Info
+                        size={18}
+                        className="mt-0.5 shrink-0 text-teal-400"
+                      />
 
-                    <p className="text-xs leading-5 text-slate-400">
-                      After creating the election, you
-                      can add any number of candidates or
-                      voting options.
-                    </p>
-                  </div>
+                      <div>
+                        <p className="text-sm font-semibold text-teal-300">
+                          Candidates are added after creation
+                        </p>
+
+                        <p className="mt-1 text-xs leading-5 text-slate-400">
+                          Once this election is created,
+                          the Candidate / Voting Options
+                          section will open automatically.
+                          You can then add any number of
+                          candidates.
+                        </p>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Buttons */}
                   <div className="flex flex-col gap-3 pt-2 sm:flex-row sm:justify-end">
@@ -1797,9 +2125,7 @@ const ManageElections = () => {
                       onClick={
                         resetElectionForm
                       }
-                      disabled={
-                        submitting
-                      }
+                      disabled={submitting}
                       className="rounded-xl border border-white/10 px-5 py-3 text-sm font-semibold text-slate-300 transition hover:bg-white/5 hover:text-white disabled:opacity-50"
                     >
                       Cancel
@@ -1807,9 +2133,7 @@ const ManageElections = () => {
 
                     <button
                       type="submit"
-                      disabled={
-                        submitting
-                      }
+                      disabled={submitting}
                       className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 px-6 py-3 text-sm font-bold text-white shadow-lg shadow-emerald-500/20 transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       {submitting ? (
@@ -1850,7 +2174,8 @@ const ManageElections = () => {
               {elections.length} election
               {elections.length !== 1
                 ? "s"
-                : ""} found
+                : ""}{" "}
+              found
             </p>
           </div>
         </div>
@@ -1897,15 +2222,13 @@ const ManageElections = () => {
             </h3>
 
             <p className="mt-2 max-w-md text-sm text-slate-500">
-              Create your first election to start
-              managing the voting process.
+              Create your first election to
+              start managing the voting process.
             </p>
 
             <button
               type="button"
-              onClick={
-                openCreateForm
-              }
+              onClick={openCreateForm}
               className="mt-5 inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 px-5 py-3 text-sm font-bold text-white"
             >
               <Plus size={17} />
@@ -1914,7 +2237,7 @@ const ManageElections = () => {
           </motion.div>
         ) : (
           /* =================================================
-             ELECTION GRID
+             ELECTION LIST
           ================================================== */
 
           <div className="grid gap-5">
@@ -1937,16 +2260,13 @@ const ManageElections = () => {
                   election._id;
 
                 const isLocked =
-                  [
-                    "LIVE",
-                    "COMPLETED",
-                    "CANCELLED",
-                  ].includes(
-                    election?.status?.toUpperCase()
+                  isElectionLocked(
+                    election
                   );
 
                 return (
                   <motion.div
+                    id={`election-${election._id}`}
                     key={election._id}
                     initial={{
                       opacity: 0,
@@ -1960,11 +2280,15 @@ const ManageElections = () => {
                       delay:
                         index * 0.04,
                     }}
-                    className="overflow-hidden rounded-3xl border border-white/10 bg-white/[0.04] shadow-xl backdrop-blur-xl transition hover:border-emerald-400/20"
+                    className={`overflow-hidden rounded-3xl border bg-white/[0.04] shadow-xl backdrop-blur-xl transition ${
+                      isExpanded
+                        ? "border-emerald-400/30 shadow-emerald-500/5"
+                        : "border-white/10 hover:border-emerald-400/20"
+                    }`}
                   >
-                    {/* ==============================
+                    {/* =================================================
                         ELECTION CARD
-                    =============================== */}
+                    ================================================== */}
 
                     <div className="p-5 sm:p-6">
                       <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
@@ -1987,15 +2311,15 @@ const ManageElections = () => {
                               "No description provided."}
                           </p>
 
-                          {/* Type */}
                           <div className="mt-4 inline-flex items-center gap-2 rounded-lg border border-white/5 bg-white/[0.025] px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">
                             <FileText size={13} />
+
                             {election.electionType ||
                               "OTHER"}
                           </div>
                         </div>
 
-                        {/* Publish state */}
+                        {/* Published */}
                         <div className="shrink-0">
                           <div className="flex items-center gap-2 rounded-xl border border-white/5 bg-slate-950/30 px-3 py-2">
                             <span
@@ -2034,9 +2358,7 @@ const ManageElections = () => {
 
                         <div className="rounded-2xl border border-white/5 bg-slate-950/40 p-4">
                           <div className="flex items-center gap-2 text-xs font-semibold text-slate-500">
-                            <Clock3
-                              size={14}
-                            />
+                            <Clock3 size={14} />
                             End
                           </div>
 
@@ -2108,7 +2430,9 @@ const ManageElections = () => {
                             </p>
 
                             <p className="text-xs text-slate-600">
-                              Manage candidates for this election
+                              {isLocked
+                                ? "Candidate management is locked"
+                                : "Add, edit and manage voting options"}
                             </p>
                           </div>
                         </div>
@@ -2128,7 +2452,9 @@ const ManageElections = () => {
                         </motion.div>
                       </button>
 
-                      <AnimatePresence initial={false}>
+                      <AnimatePresence
+                        initial={false}
+                      >
                         {isExpanded && (
                           <motion.div
                             initial={{
@@ -2146,8 +2472,7 @@ const ManageElections = () => {
                             className="overflow-hidden"
                           >
                             <div className="border-t border-white/5 p-5 sm:p-6">
-
-                              {/* Candidate header */}
+                              {/* Candidate Header */}
                               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                                 <div>
                                   <h4 className="font-bold text-white">
@@ -2160,8 +2485,9 @@ const ManageElections = () => {
                                   </h4>
 
                                   <p className="mt-1 text-xs text-slate-600">
-                                    Add any number of voting
-                                    options for this election.
+                                    {isLocked
+                                      ? "This election can no longer be modified."
+                                      : "Add any number of candidates or voting options."}
                                   </p>
                                 </div>
 
@@ -2183,7 +2509,7 @@ const ManageElections = () => {
                                 )}
                               </div>
 
-                              {/* Candidate form */}
+                              {/* Candidate Form */}
                               <AnimatePresence>
                                 {showCandidateForm ===
                                   election._id && (
@@ -2213,24 +2539,45 @@ const ManageElections = () => {
                                 )}
                               </AnimatePresence>
 
-                              {/* Candidate list */}
+                              {/* Candidate List */}
                               {candidates.length ===
                               0 ? (
                                 <div className="mt-5 rounded-2xl border border-dashed border-white/10 bg-white/[0.015] p-8 text-center">
-                                  <Users
-                                    size={30}
-                                    className="mx-auto text-slate-700"
-                                  />
+                                  <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-500/10 text-emerald-400">
+                                    <Users
+                                      size={26}
+                                    />
+                                  </div>
 
-                                  <p className="mt-3 text-sm font-semibold text-slate-500">
+                                  <p className="mt-3 text-sm font-semibold text-slate-400">
                                     No candidates added yet
                                   </p>
 
                                   {!isLocked && (
-                                    <p className="mt-1 text-xs text-slate-700">
-                                      Add candidates before
-                                      publishing the election.
-                                    </p>
+                                    <>
+                                      <p className="mt-1 text-xs text-slate-600">
+                                        Add the first
+                                        candidate /
+                                        voting option
+                                        using the button
+                                        above.
+                                      </p>
+
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          openCandidateForm(
+                                            election._id
+                                          )
+                                        }
+                                        className="mt-4 inline-flex items-center gap-2 rounded-xl bg-emerald-500/10 px-4 py-2.5 text-xs font-bold text-emerald-300 transition hover:bg-emerald-500/20"
+                                      >
+                                        <Plus
+                                          size={15}
+                                        />
+                                        Add First Candidate
+                                      </button>
+                                    </>
                                   )}
                                 </div>
                               ) : (
@@ -2252,6 +2599,9 @@ const ManageElections = () => {
                                           }
                                           actionId={
                                             candidateActionId
+                                          }
+                                          readOnly={
+                                            isLocked
                                           }
                                           onEdit={() =>
                                             openCandidateForm(
@@ -2280,7 +2630,6 @@ const ManageElections = () => {
 
                     <div className="border-t border-white/10 bg-slate-950/30 p-4">
                       <div className="flex flex-wrap gap-2">
-
                         {/* Edit */}
                         {!isLocked && (
                           <button
