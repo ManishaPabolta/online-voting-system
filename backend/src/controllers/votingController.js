@@ -4,6 +4,8 @@ import Vote from "../models/Vote.js";
 import Election from "../models/Election.js";
 import Candidate from "../models/Candidate.js";
 import VoterProfile from "../models/VoterProfile.js";
+import User from "../models/User.js";
+import Notification from "../models/Notification.js";
 
 // ======================================================
 // HELPERS
@@ -45,24 +47,34 @@ const getElectionState = (election) => {
 };
 
 const getClientIp = (req) => {
-  const forwardedFor = req.headers["x-forwarded-for"];
+  const forwardedFor =
+    req.headers["x-forwarded-for"];
 
   if (forwardedFor) {
     if (Array.isArray(forwardedFor)) {
       return forwardedFor[0];
     }
 
-    return forwardedFor.split(",")[0].trim();
+    return forwardedFor
+      .split(",")[0]
+      .trim();
   }
 
-  return req.ip || req.socket?.remoteAddress || "";
+  return (
+    req.ip ||
+    req.socket?.remoteAddress ||
+    ""
+  );
 };
 
 // ======================================================
 // CAST VOTE
 // ======================================================
 
-export const castVote = async (req, res) => {
+export const castVote = async (
+  req,
+  res
+) => {
   try {
     const {
       electionId,
@@ -73,7 +85,10 @@ export const castVote = async (req, res) => {
     // BASIC VALIDATION
     // ==================================================
 
-    if (!electionId || !candidateId) {
+    if (
+      !electionId ||
+      !candidateId
+    ) {
       return res.status(400).json({
         success: false,
         message:
@@ -86,8 +101,12 @@ export const castVote = async (req, res) => {
     // ==================================================
 
     if (
-      !isValidObjectId(electionId) ||
-      !isValidObjectId(candidateId)
+      !isValidObjectId(
+        electionId
+      ) ||
+      !isValidObjectId(
+        candidateId
+      )
     ) {
       return res.status(400).json({
         success: false,
@@ -108,15 +127,17 @@ export const castVote = async (req, res) => {
       });
     }
 
-    const voterId = req.user._id;
+    const voterId =
+      req.user._id;
 
     // ==================================================
     // VOTING PASSWORD CHECK
     // ==================================================
-    // mfaMiddleware verifies the separate voting
-    // password before this controller runs.
 
-    if (req.votingPasswordVerified !== true) {
+    if (
+      req.votingPasswordVerified !==
+      true
+    ) {
       return res.status(403).json({
         success: false,
         message:
@@ -142,7 +163,10 @@ export const castVote = async (req, res) => {
       });
     }
 
-    if (profile.isComplete !== true) {
+    if (
+      profile.isComplete !==
+      true
+    ) {
       return res.status(403).json({
         success: false,
         message:
@@ -155,7 +179,10 @@ export const castVote = async (req, res) => {
     // ELIGIBILITY CHECK
     // ==================================================
 
-    if (profile.isEligible !== true) {
+    if (
+      profile.isEligible !==
+      true
+    ) {
       return res.status(403).json({
         success: false,
         message:
@@ -181,7 +208,6 @@ export const castVote = async (req, res) => {
     // ==================================================
     // LOCATION CHECK
     // ==================================================
-    // locationMiddleware already validates the values.
 
     if (
       !req.location ||
@@ -221,9 +247,14 @@ export const castVote = async (req, res) => {
     // ==================================================
 
     const electionState =
-      getElectionState(election);
+      getElectionState(
+        election
+      );
 
-    if (electionState === "DRAFT") {
+    if (
+      electionState ===
+      "DRAFT"
+    ) {
       return res.status(400).json({
         success: false,
         message:
@@ -231,7 +262,10 @@ export const castVote = async (req, res) => {
       });
     }
 
-    if (electionState === "UPCOMING") {
+    if (
+      electionState ===
+      "UPCOMING"
+    ) {
       return res.status(400).json({
         success: false,
         message:
@@ -239,7 +273,10 @@ export const castVote = async (req, res) => {
       });
     }
 
-    if (electionState === "COMPLETED") {
+    if (
+      electionState ===
+      "COMPLETED"
+    ) {
       return res.status(400).json({
         success: false,
         message:
@@ -247,7 +284,10 @@ export const castVote = async (req, res) => {
       });
     }
 
-    if (electionState === "CANCELLED") {
+    if (
+      electionState ===
+      "CANCELLED"
+    ) {
       return res.status(400).json({
         success: false,
         message:
@@ -255,7 +295,10 @@ export const castVote = async (req, res) => {
       });
     }
 
-    if (electionState !== "LIVE") {
+    if (
+      electionState !==
+      "LIVE"
+    ) {
       return res.status(400).json({
         success: false,
         message:
@@ -267,9 +310,13 @@ export const castVote = async (req, res) => {
     // EXTRA DATE CHECK
     // ==================================================
 
-    const now = new Date();
+    const now =
+      new Date();
 
-    if (now < election.startDate) {
+    if (
+      now <
+      election.startDate
+    ) {
       return res.status(400).json({
         success: false,
         message:
@@ -277,7 +324,10 @@ export const castVote = async (req, res) => {
       });
     }
 
-    if (now >= election.endDate) {
+    if (
+      now >=
+      election.endDate
+    ) {
       return res.status(400).json({
         success: false,
         message:
@@ -331,11 +381,14 @@ export const castVote = async (req, res) => {
       await Vote.create({
         voter: voterId,
 
-        election: electionId,
+        election:
+          electionId,
 
-        candidate: candidateId,
+        candidate:
+          candidateId,
 
-        castAt: new Date(),
+        castAt:
+          new Date(),
 
         latitude:
           req.location.latitude,
@@ -347,33 +400,131 @@ export const castVote = async (req, res) => {
           getClientIp(req),
 
         deviceInfo:
-          req.headers["user-agent"] ||
-          "",
+          req.headers[
+            "user-agent"
+          ] || "",
       });
 
     // ==================================================
-    // IMPORTANT
+    // NOTIFICATIONS
     // ==================================================
-    // We intentionally DO NOT update:
     //
-    // Candidate.voteCount
-    // Election.totalVotes
+    // Notification errors must NOT make
+    // a successful vote fail.
     //
-    // Vote collection is the source of truth.
-    //
-    // This prevents counters from becoming inconsistent
-    // with the actual votes.
+
+    try {
+      // ------------------------------------------------
+      // FIND ADMINS
+      // ------------------------------------------------
+
+      const admins =
+        await User.find({
+          role: "ADMIN",
+          isActive: true,
+          isBlocked: {
+            $ne: true,
+          },
+        }).select("_id");
+
+      // ------------------------------------------------
+      // ADMIN NOTIFICATION
+      // ------------------------------------------------
+
+      if (
+        admins.length > 0
+      ) {
+        await Notification.insertMany(
+          admins.map(
+            (admin) => ({
+              user:
+                admin._id,
+
+              title:
+                "New Vote Submitted",
+
+              message:
+                `A voter has successfully submitted a vote in "${election.title}".`,
+
+              type:
+                "VOTE_CAST",
+
+              relatedElection:
+                election._id,
+
+              relatedCandidate:
+                candidate._id,
+
+              priority:
+                "NORMAL",
+
+              actionUrl:
+                "/admin",
+            })
+          )
+        );
+      }
+
+      // ------------------------------------------------
+      // USER NOTIFICATION
+      // ------------------------------------------------
+
+      await Notification.create({
+        user:
+          voterId,
+
+        title:
+          "Vote Submitted Successfully",
+
+        message:
+          `Your vote in "${election.title}" has been recorded successfully.`,
+
+        type:
+          "VOTE_CONFIRMATION",
+
+        relatedElection:
+          election._id,
+
+        relatedCandidate:
+          candidate._id,
+
+        priority:
+          "NORMAL",
+
+        actionUrl:
+          "/voting-history",
+      });
+    } catch (
+      notificationError
+    ) {
+      console.error(
+        "VOTE NOTIFICATION ERROR:",
+        notificationError
+      );
+    }
+
+    // ==================================================
+    // RESPONSE
+    // ==================================================
 
     return res.status(201).json({
       success: true,
+
       message:
         "Your vote has been recorded successfully.",
 
       vote: {
-        id: vote._id,
-        election: electionId,
-        candidate: candidateId,
-        castAt: vote.castAt,
+        id:
+          vote._id,
+
+        election:
+          electionId,
+
+        candidate:
+          candidateId,
+
+        castAt:
+          vote.castAt,
       },
     });
   } catch (error) {
@@ -385,10 +536,11 @@ export const castVote = async (req, res) => {
     // ==================================================
     // DUPLICATE VOTE
     // ==================================================
-    // Protected by unique index:
-    // { voter: 1, election: 1 }
 
-    if (error.code === 11000) {
+    if (
+      error.code ===
+      11000
+    ) {
       return res.status(409).json({
         success: false,
         message:
@@ -424,147 +576,162 @@ export const castVote = async (req, res) => {
 // GET VOTE STATUS / VOTING HISTORY
 // ======================================================
 
-export const getVoteStatus = async (
-  req,
-  res
-) => {
-  try {
-    if (!req.user?._id) {
-      return res.status(401).json({
+export const getVoteStatus =
+  async (
+    req,
+    res
+  ) => {
+    try {
+      if (!req.user?._id) {
+        return res.status(401).json({
+          success: false,
+          message:
+            "Authentication required.",
+        });
+      }
+
+      const votes =
+        await Vote.find({
+          voter:
+            req.user._id,
+        })
+          .populate(
+            "election",
+            "title electionType status startDate endDate"
+          )
+          .populate(
+            "candidate",
+            "name party photo symbol"
+          )
+          .sort({
+            castAt: -1,
+          });
+
+      return res.status(200).json({
+        success: true,
+
+        totalVotes:
+          votes.length,
+
+        votes:
+          votes.map(
+            (vote) => ({
+              id:
+                vote._id,
+
+              election:
+                vote.election,
+
+              candidate:
+                vote.candidate,
+
+              castAt:
+                vote.castAt ||
+                vote.createdAt,
+            })
+          ),
+      });
+    } catch (error) {
+      console.error(
+        "GET VOTE STATUS ERROR:",
+        error
+      );
+
+      return res.status(500).json({
         success: false,
         message:
-          "Authentication required.",
+          "Unable to fetch voting history.",
       });
     }
-
-    const votes =
-      await Vote.find({
-        voter: req.user._id,
-      })
-        .populate(
-          "election",
-          "title electionType status startDate endDate"
-        )
-        .populate(
-          "candidate",
-          "name party photo symbol"
-        )
-        .sort({
-          castAt: -1,
-        });
-
-    return res.status(200).json({
-      success: true,
-
-      totalVotes:
-        votes.length,
-
-      votes: votes.map(
-        (vote) => ({
-          id: vote._id,
-
-          election:
-            vote.election,
-
-          candidate:
-            vote.candidate,
-
-          castAt:
-            vote.castAt ||
-            vote.createdAt,
-        })
-      ),
-    });
-  } catch (error) {
-    console.error(
-      "GET VOTE STATUS ERROR:",
-      error
-    );
-
-    return res.status(500).json({
-      success: false,
-      message:
-        "Unable to fetch voting history.",
-    });
-  }
-};
+  };
 
 // ======================================================
 // CHECK SPECIFIC ELECTION VOTE STATUS
 // ======================================================
 
-export const checkVoteStatus = async (
-  req,
-  res
-) => {
-  try {
-    if (!req.user?._id) {
-      return res.status(401).json({
-        success: false,
-        message:
-          "Authentication required.",
+export const checkVoteStatus =
+  async (
+    req,
+    res
+  ) => {
+    try {
+      if (!req.user?._id) {
+        return res.status(401).json({
+          success: false,
+          message:
+            "Authentication required.",
+        });
+      }
+
+      const {
+        electionId,
+      } = req.params;
+
+      if (!electionId) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Election ID is required.",
+        });
+      }
+
+      if (
+        !isValidObjectId(
+          electionId
+        )
+      ) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Invalid election ID.",
+        });
+      }
+
+      const vote =
+        await Vote.findOne({
+          voter:
+            req.user._id,
+
+          election:
+            electionId,
+        }).select(
+          "_id castAt createdAt"
+        );
+
+      return res.status(200).json({
+        success: true,
+
+        hasVoted:
+          Boolean(vote),
+
+        votedAt:
+          vote?.castAt ||
+          vote?.createdAt ||
+          null,
       });
-    }
-
-    const {
-      electionId,
-    } = req.params;
-
-    if (!electionId) {
-      return res.status(400).json({
-        success: false,
-        message:
-          "Election ID is required.",
-      });
-    }
-
-    if (!isValidObjectId(electionId)) {
-      return res.status(400).json({
-        success: false,
-        message:
-          "Invalid election ID.",
-      });
-    }
-
-    const vote =
-      await Vote.findOne({
-        voter: req.user._id,
-        election: electionId,
-      }).select(
-        "_id castAt createdAt"
+    } catch (error) {
+      console.error(
+        "CHECK VOTE STATUS ERROR:",
+        error
       );
 
-    return res.status(200).json({
-      success: true,
-
-      hasVoted:
-        Boolean(vote),
-
-      votedAt:
-        vote?.castAt ||
-        vote?.createdAt ||
-        null,
-    });
-  } catch (error) {
-    console.error(
-      "CHECK VOTE STATUS ERROR:",
-      error
-    );
-
-    return res.status(500).json({
-      success: false,
-      message:
-        "Unable to check vote status.",
-    });
-  }
-};
+      return res.status(500).json({
+        success: false,
+        message:
+          "Unable to check vote status.",
+      });
+    }
+  };
 
 // ======================================================
 // ELECTION RESULTS
 // ======================================================
 
 export const getElectionResults =
-  async (req, res) => {
+  async (
+    req,
+    res
+  ) => {
     try {
       const {
         id: electionId,
@@ -574,7 +741,11 @@ export const getElectionResults =
       // VALIDATE ELECTION ID
       // ==================================================
 
-      if (!isValidObjectId(electionId)) {
+      if (
+        !isValidObjectId(
+          electionId
+        )
+      ) {
         return res.status(400).json({
           success: false,
           message:
@@ -604,7 +775,9 @@ export const getElectionResults =
       // ==================================================
 
       const electionState =
-        getElectionState(election);
+        getElectionState(
+          election
+        );
 
       const isCompleted =
         electionState ===
@@ -636,8 +809,11 @@ export const getElectionResults =
 
       const candidates =
         await Candidate.find({
-          election: electionId,
-          isActive: true,
+          election:
+            electionId,
+
+          isActive:
+            true,
         }).select(
           "name party photo symbol"
         );
@@ -659,7 +835,8 @@ export const getElectionResults =
 
           {
             $group: {
-              _id: "$candidate",
+              _id:
+                "$candidate",
 
               votes: {
                 $sum: 1,
@@ -716,7 +893,8 @@ export const getElectionResults =
 
               votes,
 
-              percentage: 0,
+              percentage:
+                0,
             };
           }
         );
@@ -727,8 +905,13 @@ export const getElectionResults =
 
       const totalVotes =
         results.reduce(
-          (total, result) =>
-            total + result.votes,
+          (
+            total,
+            result
+          ) =>
+            total +
+            result.votes,
+
           0
         );
 
@@ -757,7 +940,8 @@ export const getElectionResults =
 
       results.sort(
         (a, b) =>
-          b.votes - a.votes
+          b.votes -
+          a.votes
       );
 
       // ==================================================
