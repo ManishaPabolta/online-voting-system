@@ -1924,23 +1924,31 @@ const handleUpdate = async (event) => {
     /* ================= UPDATE PAYLOAD ================= */
 
     const electionData = {
-      title,
-      description,
-      electionType: form.electionType,
-      startDate: form.startDate,
-      endDate: form.endDate || undefined,
-      bannerImage: bannerImage || undefined,
-      instructions: instructions || undefined,
-      allowResultsBeforeEnd: Boolean(
-        form.allowResultsBeforeEnd
-      ),
-    };
+  title,
+  description,
+  electionType: form.electionType,
 
-    console.log(
-      "Updating election:",
-      editId,
-      electionData
-    );
+  // Browser local time → UTC for backend
+  startDate: toISOStringFromLocal(
+    form.startDate
+  ),
+
+  // Browser local time → UTC for backend
+  endDate: toISOStringFromLocal(
+    form.endDate
+  ),
+
+  bannerImage:
+    bannerImage || undefined,
+
+  instructions:
+    instructions || undefined,
+
+  allowResultsBeforeEnd:
+    Boolean(
+      form.allowResultsBeforeEnd
+    ),
+};
 
     /* ================= API CALL ================= */
 
